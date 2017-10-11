@@ -1,7 +1,9 @@
+import multiprocessing
 import argparse
 import sys
 import subprocess
 import os
+import kmer_overlap
 from Bio.Blast.Applications import NcbiblastnCommandline
 from Bio.Blast import NCBIXML
 from io import StringIO
@@ -14,10 +16,17 @@ from Bio import SeqIO
 # 3) Identify contigs that are likely of plasmid origin in a draft assembly.
 
 
-def mash_fasta(assembly, plasmid_sketch):
+def mash_fasta(assembly, plasmid_sketch, outdir='tmp/', threads=8):
+    """
+    :param assembly: Fasta assembly file.
+    :param plasmid_sketch: .msh file created by mash sketch
+    :param outdir: output directory where tsv file called mash_output containing distances for each contig in assembly
+    to each plasmid in the plasmid_sketch file will be stored.
+    :param threads: Number of threads to run mash on.
+    """
     print('Mashing as initial screen.')
     # Add parallelism eventually.
-    cmd = 'mash dist -d 0.1 -p 12 -i {} {} > tmp/mash_output'.format(assembly, plasmid_sketch)
+    cmd = 'mash dist -d 0.1 -p {} -i {} {} > {}/mash_output'.format(assembly, str(threads), plasmid_sketch, outdir)
     print(cmd)
     subprocess.call(cmd, shell=True)
 
@@ -65,7 +74,12 @@ def make_blast_database(fasta_file):
 
 
 def retrieve_contig_sequence(contig_header, fasta_file):
-    sequence = ''
+    """
+    :param contig_header: Title for a contig you'd like the sequence of.
+    :param fasta_file: Path to fasta file containing the contig.
+    :return: NA if contig wasn't found, the sequence of the contig if it was found.
+    """
+    sequence = 'NA'
     for contig in SeqIO.parse(fasta_file, 'fasta'):
         if contig.id == contig_header:
             sequence = str(contig.seq)
@@ -101,6 +115,14 @@ def blast_things(best_hits, assembly):
 
 
 def quality_trim(forward_in, reverse_in, forward_out, reverse_out):
+    """
+    Runs bbduk to quality trim a set of reads.
+    :param forward_in: Forward reads.
+    :param reverse_in: Reverse reads.
+    :param forward_out:
+    :param reverse_out:
+    :return:
+    """
     print('Quality Trimming...')
     cmd = 'which bbduk.sh'
     bbduk_dir = subprocess.check_output(cmd.split()).decode('utf-8')
@@ -112,10 +134,10 @@ def quality_trim(forward_in, reverse_in, forward_out, reverse_out):
     subprocess.call(cmd, shell=True)
 
 
-def get_plasmid_reads(forward_in, reverse_in, forward_out, reverse_out):
+def get_plasmid_reads(forward_in, reverse_in, forward_out, reverse_out, plasmid_database):
     print('Extracting plasmid reads...')
-    cmd = 'bbduk.sh in1={} in2={} outm={} outm2={} ref={} overwrite'.format(forward_in, reverse_in, forward_out, reverse_out,
-                                                                  'nucleotideseq.fa')
+    cmd = 'bbduk.sh in1={} in2={} outm={} outm2={} ref={} overwrite'.format(forward_in, reverse_in, forward_out,
+                                                                            reverse_out, plasmid_database)
     subprocess.call(cmd, shell=True)
 
 
@@ -128,28 +150,6 @@ def interleave_reads(forward_in, reverse_in, interleaved):
 def mash_reads(interleaved_reads, plasmid_sketch):
     cmd = 'mash dist -d 0.15 -p 12 -r {} {} > tmp/mash_output'.format(interleaved_reads, plasmid_sketch)
     subprocess.call(cmd, shell=True)
-
-
-def parse_read_mash_output(mash_output):
-    """
-    :param mash_output: Output generated from mash_reads.
-    :return: list containing potential plasmids.
-    """
-    print('Parsing mash output.')
-    f = open(mash_output)
-    mash_data = f.readlines()
-    f.close()
-    potential_plasmids = list()
-    distances = list()
-    for match in mash_data:
-        x = match.split()
-        plasmid = x[1]
-        distance = x[2]
-        if distance not in distances:
-            distances.append(distance)
-            potential_plasmids.append(plasmid)
-
-    return potential_plasmids
 
 
 def generate_consensus(reads, reference_fasta, output_fasta):
@@ -173,16 +173,28 @@ def generate_consensus(reads, reference_fasta, output_fasta):
     subprocess.call(cmd, shell=True)
 
 
-def only_assembly(assembly):
+def kmerize_reads(read_file, output_file):
+    cmd = 'jellyfish count -m 31 -t 12 -s 100M --bf-size 100M -C ' + read_file
+    subprocess.call(cmd, shell=True)
+    cmd = 'jellyfish dump -c mer_counts.jf > ' + output_file
+    subprocess.call(cmd, shell=True)
+
+
+def only_assembly(assembly, output_base):
+    tmpdir = output_base + 'tmp/'
+    if not os.path.isdir(output_base):
+        os.makedirs(output_base)
+    if not os.path.isdir(tmpdir):
+        os.makedirs(tmpdir)
     print('Analyzing draft assembly.')
     # Step 1: Mash each contig against the plasmid database sketch to see what's most closely related and screen out
     # things we don't want to blast against.
-    mash_fasta(assembly, 'plasmid_sketch.msh')
-    hits = parse_mash_output('tmp/mash_output')
+    mash_fasta(assembly, 'reduced_sketch.msh', outdir=tmpdir)
+    hits = parse_mash_output(tmpdir + '/mash_output')
     # Step 2: Once MASH has done a preliminary screen, get to BLASTing to more precisely locate plasmid sequences.
     locations = blast_things(hits, assembly)
     # Step 3: Create a nice report that tells you everything you need to know.
-    f = open('plasmid_sequence.csv', 'w')  # TODO: Name this report.
+    f = open(output_base + '/plasmid_locations.csv', 'w')
     f.write('Contig,Plasmid,Start,End\n')
     for contig in hits:
         for location in locations[contig]:
@@ -191,34 +203,58 @@ def only_assembly(assembly):
     f.close()
 
 
-def only_reads(reads):
+def only_reads(reads, output_base):
+    tmpdir = output_base + 'tmp/'
+    if not os.path.isdir(output_base):
+        os.makedirs(output_base)
     print('Analyzing raw reads!')
     # Step 1: Quality trim reads.
-    quality_trim(reads[0], reads[1], 'trimmed_R1.fastq.gz', 'trimmed_R2.fastq.gz')
+    quality_trim(reads[0], reads[1], tmpdir + 'trimmed_R1.fastq.gz', tmpdir + 'trimmed_R2.fastq.gz')
     # Step 1.5: Bait out reads that match to plasmid stuff.
-    get_plasmid_reads('trimmed_R1.fastq.gz', 'trimmed_R2.fastq.gz', 'plasmid_R1.fastq.gz', 'plasmid_R2.fastq.gz')
-    interleave_reads('plasmid_R1.fastq.gz', 'plasmid_R2.fastq.gz', 'interleaved.fastq.gz')
+    get_plasmid_reads(tmpdir + 'trimmed_R1.fastq.gz', tmpdir + 'trimmed_R2.fastq.gz',
+                      tmpdir + 'plasmid_R1.fastq.gz', tmpdir + 'plasmid_R2.fastq.gz', 'nucleotideseq.fasta')
+    interleave_reads(tmpdir + 'plasmid_R1.fastq.gz', tmpdir + 'plasmid_R2.fastq.gz', tmpdir + 'interleaved.fastq')
     # Step 2: MASH reads against plasmid sketch to figure out which plasmids we should be reference mapping.
-    mash_reads('interleaved.fastq.gz', 'plasmid_sketch.msh')
-    plasmids = parse_read_mash_output('tmp/mash_output')
+    # mash_reads('interleaved.fastq.gz', 'plasmid_sketch.msh')
+    kmerize_reads(tmpdir + 'interleaved.fastq', tmpdir + 'reads.tab')
+    plasmids = kmer_overlap.find_plasmids(tmpdir + 'reads.tab')
+    # plasmids = parse_read_mash_output('tmp/mash_output')
     # Step 3: For each very likely plasmid, do reference mapping and generate a consensus sequence.
     for plasmid in plasmids:
-        generate_consensus('interleaved.fastq.gz', plasmid, plasmid + '_consensus.fasta')
+        generate_consensus(tmpdir + 'interleaved.fastq', plasmid.replace('kmerized_plasmids', 'reduced_db'),
+                           output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
+
+
+class PlasmidExtractor(object):
+    def __init__(self, args):
+        self.forward_reads = args.reads[0]
+        self.reverse_reads = args.reads[1]
+        self.output_base = args.output_dir
+        self.threads = args.threads
+        self.keep_tmpfiles = args.keep_tmpfiles
+
 
 if __name__ == '__main__':
+    num_cpus = multiprocessing.cpu_count()
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--assembly', default='NA', type=str, help='Full path to draft assembly.')
     parser.add_argument('-r', '--reads', default='NA', nargs='+', type=str, help='Raw read files. If paired, enter '
                                                                                  'both, separated by a space.')
+    parser.add_argument('output_dir', type=str, help='Where results will be stored.')
+    parser.add_argument('-t', '--threads', default=num_cpus, type=int, help='Number of CPUs to run analysis on.'
+                                                                            ' Defaults to number of cores on your'
+                                                                            ' machine.')
+    parser.add_argument('-k', '--keep-tmpfiles', default=False, action='store_true', help='When specified, will keep'
+                                                                                          ' the created tmp directory'
+                                                                                          ' instead of deleting it.')
     args = parser.parse_args()
-    if not os.path.isdir('tmp'):
-        os.makedirs('tmp')
     if args.assembly == 'NA' and args.reads == 'NA':
         print('No assembly files or raw reads specified. Exiting...')
         sys.exit()
     elif args.assembly == 'NA' and args.reads != 'NA':
-        only_reads(args.reads)
+        only_reads(args.reads, args.output_dir)
     elif args.assembly != 'NA' and args.reads == 'NA':
-        only_assembly(args.assembly)
+        only_assembly(args.assembly, args.output_dir)
     else:
-        print('Input is both raw reads and assembly. Analyzing!')
+        print('Input is both raw reads and assembly. I have not fully figured out what it is that I want to do with '
+              'this yet.')

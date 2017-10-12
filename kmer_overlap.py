@@ -40,12 +40,12 @@ def get_read_kmer_list(read_file):
     return read_kmers
 
 
-def find_plasmids(read_counts):
+def find_plasmids(read_counts, threads=4):
     plasmids = list()
     read_kmers = get_read_kmer_list(read_counts)
     plasmid_files = glob.glob('kmerized_plasmids/*')
     read_list = [read_kmers] * len(plasmid_files)
-    pool = multiprocessing.Pool(processes=12)
+    pool = multiprocessing.Pool(processes=threads)
     results = pool.starmap(compare, zip(plasmid_files, read_list))
     pool.close()
     pool.join()

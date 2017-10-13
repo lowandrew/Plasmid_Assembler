@@ -198,21 +198,27 @@ def generate_consensus(reads, reference_fasta, output_fasta, logfile='logfile.lo
         # Step 3: Sort the bam file.
         cmd = 'samtools sort {}.bam -o {}_sorted.bam'.format(output_base, output_base)
         subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 3: Fancy bcftools piping to generate vcf file.
-        cmd = 'bcftools mpileup -Ou -f {} {}_sorted.bam | bcftools call -mv -Oz -o {}.vcf.gz'.format(reference_fasta,
-                                                                                                     output_base,
-                                                                                                     output_base)
+        # Step 3.1: Use bedtools + some shell magic to find regions with zero coverage that we'd like to be Ns.
+        # Ideally, change this from awk at some point to make it more generalizable.
+        cmd = 'bedtools genomecov -ibam {}_sorted.bam -bga | awk \'$4 == 0\' > {}.bed'.format(output_base, output_base)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 3.2: Fancy bcftools piping to generate vcf file.
+        cmd = 'bcftools mpileup --threads {} -Ou -f {} {}_sorted.bam | bcftools call --threads {} -mv -Oz -o {}.vcf.gz'\
+              ''.format(str(threads), reference_fasta, output_base, str(threads), output_base)
         subprocess.call(cmd, shell=True, stderr=log, stdout=log)
         # Step 4: Index vcf file.
         cmd = 'tabix {}.vcf.gz'.format(output_base)
         subprocess.call(cmd, shell=True, stderr=log, stdout=log)
         # Step 5: Generate consensus fasta from vcf file.
-        cmd = 'cat {} | bcftools consensus {}.vcf.gz > {}'.format(reference_fasta, output_base, output_fasta)
+        cmd = 'cat {} | bcftools consensus {}.vcf.gz > {}'.format(reference_fasta, output_base, 'tmp.fasta')
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 6: Mask regions that don't have any coverage using bedtools.
+        cmd = 'bedtools maskfasta -fi tmp.fasta -bed {}.bed -fo {}'.format(output_base, output_fasta)
         subprocess.call(cmd, shell=True, stderr=log, stdout=log)
 
     if cleanup:
         to_delete = [output_base + '.bam', reference_fasta + '.fai', output_base + '_sorted.bam',
-                     output_base + '.vcf.gz', output_base + '.vcf.gz.tbi']
+                     output_base + '.vcf.gz', output_base + '.vcf.gz.tbi', output_base + '.bed', 'tmp.fasta']
         for item in to_delete:
             os.remove(item)
 

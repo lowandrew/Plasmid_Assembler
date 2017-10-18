@@ -1,3 +1,4 @@
+import copy
 import multiprocessing
 import shutil
 import argparse
@@ -220,7 +221,10 @@ def generate_consensus(reads, reference_fasta, output_fasta, logfile='logfile.lo
         to_delete = [output_base + '.bam', reference_fasta + '.fai', output_base + '_sorted.bam',
                      output_base + '.vcf.gz', output_base + '.vcf.gz.tbi', output_base + '.bed', 'tmp.fasta']
         for item in to_delete:
-            os.remove(item)
+            try:
+                os.remove(item)
+            except FileNotFoundError:
+                pass
 
 
 def remove_plasmid_from_reads(plasmid_sequences, forward_in, reverse_in, forward_out, reverse_out,
@@ -262,6 +266,33 @@ def kmerize_reads(read_file, output_file, kmer_size=31, logfile='logfile.log', t
         subprocess.call(cmd, shell=True, stdout=log, stderr=log)
         cmd = 'jellyfish dump -c mer_counts.jf > ' + output_file
         subprocess.call(cmd, shell=True, stdout=log, stderr=log)
+
+
+def filter_plasmids(plasmids, tmpdir, logfile='logfile.log'):
+    # Given a list of plasmids, try to figure out which ones are overly similar and should be disregarded.
+    print('Filtering plasmids.')
+    # Step 1: Sketch all of the plasmids.
+    cmd = 'mash sketch -o {}/sketch.msh'.format(tmpdir)
+    for plasmid in plasmids:
+        cmd += ' ' + plasmid.replace('kmerized_plasmids', 'reduced_db')
+    with open(logfile, 'a+') as log:
+        subprocess.call(cmd, shell=True, stdout=log, stderr=log)
+    # Step 2: For each plasmid, find out if any of the other plasmids are too close.
+    keeper_plasmids = copy.deepcopy(plasmids)
+    for plasmid in plasmids:
+        if plasmid in keeper_plasmids:
+            cmd = 'mash dist -d 0.01 {} {}/sketch.msh > {}/distances.tab'.format(plasmid.replace('kmerized_plasmids', 'reduced_db'),
+                                                                                 tmpdir, tmpdir)
+            with open(logfile, 'a+') as log:
+                subprocess.call(cmd, shell=True, stdout=log, stderr=log)
+            f = open(tmpdir + '/distances.tab')
+            lines = f.readlines()
+            f.close()
+            for line in lines:
+                info = line.split()
+                if info[0] != info[1]:
+                    keeper_plasmids.remove(info[1].replace('reduced_db', 'kmerized_plasmids'))
+    return keeper_plasmids
 
 
 class PlasmidExtractor(object):
@@ -319,17 +350,24 @@ class PlasmidExtractor(object):
         # Step 3: For each very likely plasmid, do reference mapping and generate a consensus sequence.
         finished_plasmids = list()
         print('Found {} potential plasmids!'.format(len(plasmids)))
-        for plasmid in plasmids:
+        good_plasmids = filter_plasmids(plasmids, tmpdir, self.logfile)
+        print('Plasmids filtered! Generating consensus for {} plasmids.'.format(str(len(good_plasmids))))
+        for plasmid in good_plasmids:
             print('Generating consensus for {}-like sequence...'.format(plasmid))
             generate_consensus(tmpdir + 'interleaved.fastq', plasmid.replace('kmerized_plasmids', 'reduced_db'),
                                self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta',
                                logfile=self.logfile, threads=self.threads)
             finished_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
         # Step 4: Generate raw reads that don't have plasmid reads (ideally).
-        remove_plasmid_from_reads(finished_plasmids, self.forward_reads, self.reverse_reads,
-                                  self.output_base + '/' + self.forward_reads.replace('.fastq', '_noplasmid.fastq'),
-                                  self.output_base + '/' + self.reverse_reads.replace('.fastq', '_noplasmid.fastq'),
-                                  tmpdir + 'concatenated_plasmid.fasta', threads=self.threads)
+        out_forward = self.forward_reads.replace('.fastq', '_noplasmid.fastq')
+        out_forward = os.path.split(out_forward)[-1]
+        out_reverse = self.reverse_reads.replace('.fastq', '_noplasmid.fastq')
+        out_reverse = os.path.split(out_reverse)[-1]
+        if len(good_plasmids) > 0:
+            remove_plasmid_from_reads(finished_plasmids, self.forward_reads, self.reverse_reads,
+                                      self.output_base + '/' + out_forward,
+                                      self.output_base + '/' + out_reverse,
+                                      tmpdir + 'concatenated_plasmid.fasta', threads=self.threads)
         print('Plasmid extraction complete!')
 
     def only_assembly(self):

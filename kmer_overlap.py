@@ -19,10 +19,11 @@ def compare(plasmid_file, read_kmers):
     for kmer in read_kmers:
         idx = bisect.bisect(plasmid_kmers, kmer)
         if plasmid_kmers[idx - 1] == kmer:
+            # print(plasmid_kmers[idx - 1], kmer)
             count += 1
 
     percentage_hit = float(count)/float(num_plasmid_kmers)
-    if percentage_hit > 0.8:
+    if percentage_hit > 0.99:
         return plasmid_file
     else:
         return 'NA'

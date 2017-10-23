@@ -10,6 +10,7 @@ from Bio.Blast.Applications import NcbiblastnCommandline
 from Bio.Blast import NCBIXML
 from io import StringIO
 from Bio import SeqIO
+import kmc_overlap
 # This is PlasmidExtractor. It will get plasmid sequences out of raw reads/draft assemblies.
 
 # Things PlasmidExtractor needs to be able to do:
@@ -268,20 +269,20 @@ def kmerize_reads(read_file, output_file, kmer_size=31, logfile='logfile.log', t
         subprocess.call(cmd, shell=True, stdout=log, stderr=log)
 
 
-def filter_plasmids(plasmids, tmpdir, logfile='logfile.log'):
+def filter_plasmids(plasmids, tmpdir, kmer_db, sequence_db, logfile='logfile.log'):
     # Given a list of plasmids, try to figure out which ones are overly similar and should be disregarded.
     print('Filtering plasmids.')
     # Step 1: Sketch all of the plasmids.
     cmd = 'mash sketch -o {}/sketch.msh'.format(tmpdir)
     for plasmid in plasmids:
-        cmd += ' ' + plasmid.replace('kmerized_plasmids', 'reduced_db')
+        cmd += ' ' + plasmid.replace(kmer_db, sequence_db)
     with open(logfile, 'a+') as log:
         subprocess.call(cmd, shell=True, stdout=log, stderr=log)
     # Step 2: For each plasmid, find out if any of the other plasmids are too close.
     keeper_plasmids = copy.deepcopy(plasmids)
     for plasmid in plasmids:
         if plasmid in keeper_plasmids:
-            cmd = 'mash dist -d 0.01 {} {}/sketch.msh > {}/distances.tab'.format(plasmid.replace('kmerized_plasmids', 'reduced_db'),
+            cmd = 'mash dist -d 0.02 {} {}/sketch.msh > {}/distances.tab'.format(plasmid.replace(kmer_db, sequence_db),
                                                                                  tmpdir, tmpdir)
             with open(logfile, 'a+') as log:
                 subprocess.call(cmd, shell=True, stdout=log, stderr=log)
@@ -291,7 +292,7 @@ def filter_plasmids(plasmids, tmpdir, logfile='logfile.log'):
             for line in lines:
                 info = line.split()
                 if info[0] != info[1]:
-                    keeper_plasmids.remove(info[1].replace('reduced_db', 'kmerized_plasmids'))
+                    keeper_plasmids.remove(info[1].replace(sequence_db, kmer_db))
     return keeper_plasmids
 
 
@@ -308,6 +309,8 @@ class PlasmidExtractor(object):
         self.keep_tmpfiles = args.keep_tmpfiles
         self.assembly = args.assembly
         self.logfile = self.output_base + '.log'
+        self.kmer_db = args.kmer_db
+        self.sequence_db = args.sequence_db
 
     def main(self):
         if self.assembly == 'NA' and self.forward_reads == 'NA':
@@ -343,18 +346,19 @@ class PlasmidExtractor(object):
                          logfile=self.logfile)
         # Step 2: MASH reads against plasmid sketch to figure out which plasmids we should be reference mapping.
         # mash_reads('interleaved.fastq.gz', 'plasmid_sketch.msh')
-        kmerize_reads(tmpdir + 'interleaved.fastq', tmpdir + 'reads.tab', logfile=self.logfile, threads=self.threads)
+        # kmerize_reads(tmpdir + 'interleaved.fastq', tmpdir + 'reads.tab', logfile=self.logfile, threads=self.threads)
         print('Searching for plasmids in raw reads...')
-        plasmids = kmer_overlap.find_plasmids(tmpdir + 'reads.tab', threads=self.threads)
+        # plasmids = kmer_overlap.find_plasmids(tmpdir + 'reads.tab', self.kmer_db, threads=self.threads)
+        plasmids = kmc_overlap.find_plasmids(tmpdir + 'interleaved.fastq', self.kmer_db, threads=self.threads)
         # plasmids = parse_read_mash_output('tmp/mash_output')
         # Step 3: For each very likely plasmid, do reference mapping and generate a consensus sequence.
         finished_plasmids = list()
         print('Found {} potential plasmids!'.format(len(plasmids)))
-        good_plasmids = filter_plasmids(plasmids, tmpdir, self.logfile)
+        good_plasmids = filter_plasmids(plasmids, tmpdir, self.kmer_db, self.sequence_db, logfile=self.logfile)
         print('Plasmids filtered! Generating consensus for {} plasmids.'.format(str(len(good_plasmids))))
         for plasmid in good_plasmids:
             print('Generating consensus for {}-like sequence...'.format(plasmid))
-            generate_consensus(tmpdir + 'interleaved.fastq', plasmid.replace('kmerized_plasmids', 'reduced_db'),
+            generate_consensus(tmpdir + 'interleaved.fastq', plasmid.replace(self.kmer_db, self.sequence_db),
                                self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta',
                                logfile=self.logfile, threads=self.threads)
             finished_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
@@ -401,6 +405,8 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--reads', default='NA', nargs='+', type=str, help='Raw read files. If paired, enter '
                                                                                  'both, separated by a space.')
     parser.add_argument('output_dir', type=str, help='Where results will be stored.')
+    parser.add_argument('kmer_db', type=str, help='Folder containing kmerized plasmids.')
+    parser.add_argument('sequence_db', type=str, help='Folder containing plasmid sequences.')
     parser.add_argument('-t', '--threads', default=num_cpus, type=int, help='Number of CPUs to run analysis on.'
                                                                             ' Defaults to number of cores on your'
                                                                             ' machine.')

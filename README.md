@@ -1,15 +1,39 @@
 # Plasmid Assembler
 
-## Program Dependencies
+Plasmid Assembler doesn't really assemble plasmids, but instead finds plasmids in raw reads that match
+to known plasmids and constructs a consensus sequence for that plasmid.
+
+### Program Dependencies
 
 - samtools >= 1.6
 - bcftools >= 1.6
 - ncbi-blast >= 2.2.31
 - bedtools >= 2.25.0
 - BBtools >= 37.23
-- jellyfish >= 2.2.6
-- mash >= 1.1.1
+- mash >= 1.1.1 (2.0 highly recommended.)
 - kmc >= 3.0
+- python >= 3.5
 
-#### Far too early to have a proper README, but if this goes anywhere I'll get filled out!
-Very first version - kind of sort of works. Unless you're me, you probably won't be able to run this.
+### Python package requirements
+
+- biopython >= 1.70
+- biotools >= 0.1.0 (see https://github.com/lowandrew/BioTools - still in alpha(ish) - will be moved to pip soon)
+
+### Databases you'll need to download
+- https://figshare.com/s/18de8bdcbba47dbaba41
+- From that database, move nucleotideseqs.fa to your current directory, and then
+run extract_seqs.py (`python extract_seqs.py`). This will separate the sequences in this file into 
+separate fastas in a folder called `plasmid_sequences`
+- Once that has completed, run the kmc_plasmids.py script to pre-compute the kmers present in each plasmid
+(`python kmc_plasmids.py`). These pre-computed kmers will be stored in a folder called `kmerized_plasmids`
+
+#### Running Plasmid Extractor
+
+`python3 PlasmidExtractor.py output_dir kmerized_plasmids plasmid_sequences -r forward_reads reverse_reads`
+Where output_dir is where you want your results stored, kmerized_plasmids is the folder created using kmc_plasmids.py, and 
+plasmid_sequences is the folder created using extract_seqs.py.
+
+If no plasmids are found, the output directory will be empty.
+
+If plasmids are found, reads without plasmid sequence in them, as well as a fasta file for each plasmid, 
+will be in the output directory.

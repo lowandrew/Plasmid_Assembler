@@ -296,6 +296,14 @@ def filter_plasmids(plasmids, tmpdir, kmer_db, sequence_db, logfile='logfile.log
     return keeper_plasmids
 
 
+def check_dependencies():
+    dependencies = ['samtools', 'bcftools', 'blastn', 'bedtools', 'bbmap.sh', 'bbduk.sh', 'mash', 'kmc']
+    for dep in dependencies:
+        is_present = shutil.which(dep)
+        if is_present is None:
+            raise ModuleNotFoundError('ERROR! Could not find executable for: {}!'.format(dep))
+
+
 class PlasmidExtractor(object):
     def __init__(self, args):
         if args.reads != 'NA':
@@ -313,6 +321,7 @@ class PlasmidExtractor(object):
         self.sequence_db = args.sequence_db
 
     def main(self):
+        check_dependencies()
         if self.assembly == 'NA' and self.forward_reads == 'NA':
             print('No assembly files or raw reads specified. Exiting...')
             sys.exit()

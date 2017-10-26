@@ -1,123 +1,29 @@
+import glob
 import copy
 import multiprocessing
 import shutil
 import argparse
-import sys
 import subprocess
 import os
-import kmer_overlap
-from Bio.Blast.Applications import NcbiblastnCommandline
-from Bio.Blast import NCBIXML
-from io import StringIO
-from Bio import SeqIO
 import kmc_overlap
-# This is PlasmidExtractor. It will get plasmid sequences out of raw reads/draft assemblies.
-
-# Things PlasmidExtractor needs to be able to do:
-# 1) Figure out which plasmids are present in raw reads/assemblies.
-# 2) Map raw reads to closest reference plasmid and generate a consensus sequence.
-# 3) Identify contigs that are likely of plasmid origin in a draft assembly.
 
 
-def mash_fasta(assembly, plasmid_sketch, outdir='tmp/', threads=8, logfile='logfile.log'):
+# This is PlasmidExtractor. It will get plasmid sequences out of raw reads.
+
+def find_paired_reads(fastq_directory, forward_id='R1', reverse_id='R2'):
     """
-    :param assembly: Fasta assembly file.
-    :param plasmid_sketch: .msh file created by mash sketch
-    :param outdir: output directory where tsv file called mash_output containing distances for each contig in assembly
-    to each plasmid in the plasmid_sketch file will be stored.
-    :param threads: Number of threads to run mash on.
-    :param logfile: Log to write stdout and stderr to.
+    Looks at a directory to try to find paired fastq files. Should be able to find anything fastq.
+    :param fastq_directory: Complete path to directory containing fastq files.
+    :param forward_id: Identifier for forward reads. Default R1.
+    :param reverse_id: Identifier for reverse reads. Default R2.
+    :return: List containing pairs of fastq files, in format [[forward_1, reverse_1], [forward_2, reverse_2]], etc.
     """
-    print('Mashing as initial screen.')
-    # Add parallelism eventually.
-    cmd = 'mash dist -d 0.1 -p {} -i {} {} > {}/mash_output'.format(str(threads), assembly, plasmid_sketch, outdir)
-    with open(logfile, 'a+') as log:
-        subprocess.call(cmd, shell=True, stdout=log, stderr=log)
-
-
-def parse_mash_output(mash_output):
-    """
-    :param mash_output: Tab-delimited file created by mash.
-    :return: dictionary containing best plasmid match to each contig.
-    """
-    print('Parsing mash output.')
-    f = open(mash_output)
-    mash_data = f.readlines()
-    f.close()
-    best_hits = dict()
-    distances = dict()
-    for match in mash_data:
-        x = match.split()
-        contig = x[0]
-        plasmid = x[1]
-        distance = float(x[2])
-        if contig not in best_hits:
-            best_hits[contig] = plasmid
-            distances[contig] = distance
-        else:
-            if distances[contig] > distance:
-                best_hits[contig] = plasmid
-                distances[contig] = distance
-    return best_hits
-
-
-def make_blast_database(fasta_file, logfile='logfile.log'):
-    """
-    Checks that a fasta file has the files needed for it to be a blast db, and creates the db if it doesn't.
-    :param fasta_file: Full path to fasta file.
-    :param logfile: Log to write stdout and stderr to.
-    :return:
-    """
-    database_extensions = ['.nhr', '.nin', '.nsq']
-    db_exists = True
-    for extension in database_extensions:
-        if not os.path.isfile(fasta_file + extension):
-            db_exists = False
-    if not db_exists:
-        cmd = 'makeblastdb -dbtype nucl -in {}'.format(fasta_file)
-        with open(logfile, 'a+') as log:
-            subprocess.call(cmd, shell=True, stdout=log, stderr=log)
-
-
-def retrieve_contig_sequence(contig_header, fasta_file):
-    """
-    :param contig_header: Title for a contig you'd like the sequence of.
-    :param fasta_file: Path to fasta file containing the contig.
-    :return: NA if contig wasn't found, the sequence of the contig if it was found.
-    """
-    sequence = 'NA'
-    for contig in SeqIO.parse(fasta_file, 'fasta'):
-        if contig.id == contig_header:
-            sequence = str(contig.seq)
-    return sequence
-
-
-# Name this better.
-def blast_things(best_hits, assembly):
-    """
-    :param best_hits: Dictionary created by parse_mash_output
-    :param assembly: Fasta file that has your draft assembly of interest.
-    :return: Dictionary containing high-scoring plasmid locations in format:
-    {contig_name:[[start1, end1], [start2, end2]]}
-    """
-    plasmid_locations = dict()
-    for contig in best_hits:
-        # Check that blast db exists for the plasmid, and create it if it doesn't.
-        make_blast_database(best_hits[contig])
-        sequence = retrieve_contig_sequence(contig, assembly)
-        blastn = NcbiblastnCommandline(db=best_hits[contig], outfmt=5)
-        stdout, stderr = blastn(stdin=sequence)
-        # print(contig, best_hits[contig])
-        locations = list()
-        for record in NCBIXML.parse(StringIO(stdout)):
-            for alignment in record.alignments:
-                for hsp in alignment.hsps:
-                    # print(hsp.query_start, hsp.query_start + hsp.align_length)
-                    locations.append([hsp.query_start, hsp.query_start + hsp.align_length])
-                    if hsp.expect > 1e-180:
-                        break
-        plasmid_locations[contig] = locations
-    return plasmid_locations
+    pair_list = list()
+    fastq_files = glob.glob(fastq_directory + '/*.f*q*')
+    for name in fastq_files:
+        if forward_id in name and os.path.isfile(name.replace(forward_id, reverse_id)):
+            pair_list.append([name, name.replace(forward_id, reverse_id)])
+    return pair_list
 
 
 def quality_trim(forward_in, reverse_in, forward_out, reverse_out, logfile='logfile.log', threads=4):
@@ -254,21 +160,6 @@ def remove_plasmid_from_reads(plasmid_sequences, forward_in, reverse_in, forward
         subprocess.call(cmd, shell=True, stdout=log, stderr=log)
 
 
-def kmerize_reads(read_file, output_file, kmer_size=31, logfile='logfile.log', threads=4):
-    """
-    Generates kmers using jellyfish on a read file.
-    :param read_file: Read file. Can be single-end or interleaved.
-    :param output_file: Name of your output file (will be tab-delimited).
-    :param kmer_size: Desired mer size. Default 31.
-    :param logfile: Logfile to send stdout and stderr to.
-    """
-    with open(logfile, 'a+') as log:
-        cmd = 'jellyfish count -m {} -t {} -s 100M --bf-size 100M -C {}'.format(str(kmer_size), str(threads), read_file)
-        subprocess.call(cmd, shell=True, stdout=log, stderr=log)
-        cmd = 'jellyfish dump -c mer_counts.jf > ' + output_file
-        subprocess.call(cmd, shell=True, stdout=log, stderr=log)
-
-
 def filter_plasmids(plasmids, tmpdir, kmer_db, sequence_db, logfile='logfile.log'):
     # Given a list of plasmids, try to figure out which ones are overly similar and should be disregarded.
     print('Filtering plasmids.')
@@ -305,34 +196,18 @@ def check_dependencies():
 
 
 class PlasmidExtractor(object):
-    def __init__(self, args):
-        if args.reads != 'NA':
-            self.forward_reads = args.reads[0]
-            self.reverse_reads = args.reads[1]
-        else:
-            self.forward_reads = 'NA'
-            self.reverse_reads = 'NA'
-        self.output_base = args.output_dir
+    def __init__(self, reads, args):
+        self.forward_reads = reads[0]
+        self.reverse_reads = reads[1]
+        self.output_base = os.path.join(args.output_dir, os.path.split(self.forward_reads)[-1].split('_')[0])
         self.threads = args.threads
         self.keep_tmpfiles = args.keep_tmpfiles
-        self.assembly = args.assembly
         self.logfile = self.output_base + '.log'
         self.kmer_db = args.kmer_db
         self.sequence_db = args.sequence_db
 
     def main(self):
-        check_dependencies()
-        if self.assembly == 'NA' and self.forward_reads == 'NA':
-            print('No assembly files or raw reads specified. Exiting...')
-            sys.exit()
-        elif self.assembly == 'NA' and self.forward_reads != 'NA':
-            self.only_reads()
-        elif self.assembly != 'NA' and self.forward_reads == 'NA':
-            self.only_assembly()
-        else:
-            print('Input is both raw reads and assembly. I have not fully figured out what it is that I want to do with'
-                  ' this yet.')
-
+        self.only_reads()
         try:
             if not self.keep_tmpfiles:
                 shutil.rmtree(self.output_base + 'tmp')
@@ -383,46 +258,39 @@ class PlasmidExtractor(object):
                                       tmpdir + 'concatenated_plasmid.fasta', threads=self.threads)
         print('Plasmid extraction complete!')
 
-    def only_assembly(self):
-        tmpdir = self.output_base + 'tmp/'
-        if not os.path.isdir(self.output_base):
-            os.makedirs(self.output_base)
-        if not os.path.isdir(tmpdir):
-            os.makedirs(tmpdir)
-        print('Analyzing draft assembly.')
-        # Step 1: Mash each contig against the plasmid database sketch to see what's most closely related and screen out
-        # things we don't want to blast against.
-        mash_fasta(self.assembly, 'reduced_sketch.msh', outdir=tmpdir)
-        hits = parse_mash_output(tmpdir + '/mash_output')
-        # Step 2: Once MASH has done a preliminary screen, get to BLASTing to more precisely locate plasmid sequences.
-        locations = blast_things(hits, self.assembly)
-        # Step 3: Create a nice report that tells you everything you need to know.
-        f = open(self.output_base + '/plasmid_locations.csv', 'w')
-        f.write('Contig,Plasmid,Start,End\n')
-        for contig in hits:
-            for location in locations[contig]:
-                outstr = '{},{},{},{}\n'.format(contig, hits[contig], str(location[0]), str(location[1]))
-                f.write(outstr)
-        f.close()
-        print('Plasmid locating complete!')
-
 
 if __name__ == '__main__':
     num_cpus = multiprocessing.cpu_count()
+    check_dependencies()
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--assembly', default='NA', type=str, help='Full path to draft assembly.')
-    parser.add_argument('-r', '--reads', default='NA', nargs='+', type=str, help='Raw read files. If paired, enter '
-                                                                                 'both, separated by a space.')
-    parser.add_argument('output_dir', type=str, help='Where results will be stored.')
-    parser.add_argument('kmer_db', type=str, help='Folder containing kmerized plasmids.')
-    parser.add_argument('sequence_db', type=str, help='Folder containing plasmid sequences.')
-    parser.add_argument('-t', '--threads', default=num_cpus, type=int, help='Number of CPUs to run analysis on.'
-                                                                            ' Defaults to number of cores on your'
-                                                                            ' machine.')
-    parser.add_argument('-k', '--keep-tmpfiles', default=False, action='store_true', help='When specified, will keep'
-                                                                                          ' the created tmp directory'
-                                                                                          ' instead of deleting it.')
+    parser.add_argument('-o', '--output_dir',
+                        type=str,
+                        required=True,
+                        help='Output directory where results will be stored.')
+    parser.add_argument('-kdb', '--kmer_db',
+                        type=str,
+                        required=True,
+                        help='Path to directory containing kmerized plasmids.')
+    parser.add_argument('-sdb', '--sequence_db',
+                        type=str,
+                        required=True,
+                        help='Path to directory containing plasmid sequences.')
+    parser.add_argument('-t', '--threads',
+                        default=num_cpus, type=int,
+                        help='Number of CPUs to run analysis on. Defaults to number of cores on your machine.')
+    parser.add_argument('-i', '--input_directory',
+                        type=str,
+                        required=True,
+                        help='Path to directory containing the paired fastq files to be analyzed.')
+    parser.add_argument('-k', '--keep-tmpfiles',
+                        default=False,
+                        action='store_true',
+                        help='When specified, will keep the created tmp directory instead of deleting it.')
     args = parser.parse_args()
-    extractor = PlasmidExtractor(args)
-    extractor.main()
+    paired_reads = find_paired_reads(args.input_directory)
+    if not os.path.isdir(args.output_dir):
+        os.makedirs(args.output_dir)
+    for pair in paired_reads:
+        extractor = PlasmidExtractor(pair, args)
+        extractor.main()
 

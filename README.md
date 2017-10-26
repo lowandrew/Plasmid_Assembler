@@ -16,8 +16,7 @@ to known plasmids and constructs a consensus sequence for that plasmid.
 
 ### Python package requirements
 
-- biopython >= 1.70
-- biotools >= 0.1.0 (see https://github.com/lowandrew/BioTools - still in alpha(ish) - will be moved to pip soon)
+In `requirements.txt`. Use `pip3 install -r requirements.txt` to download and install.
 
 ### Databases you'll need to download
 - https://figshare.com/s/18de8bdcbba47dbaba41
@@ -29,7 +28,7 @@ separate fastas in a folder called `plasmid_sequences`
 
 #### Running Plasmid Extractor
 
-`python3 PlasmidExtractor.py output_dir kmerized_plasmids plasmid_sequences -r forward_reads reverse_reads`
+`python3 PlasmidExtractor.py -o output_dir -kdb kmerized_plasmids -sdb plasmid_sequences -i read_directory`
 Where output_dir is where you want your results stored, kmerized_plasmids is the folder created using kmc_plasmids.py, and 
 plasmid_sequences is the folder created using extract_seqs.py.
 

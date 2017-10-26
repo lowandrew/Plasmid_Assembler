@@ -5,10 +5,57 @@ import shutil
 import argparse
 import subprocess
 import os
-import kmc_overlap
+from biotools import kmc
+from biotools import accessoryfunctions
+
+
+class PlasmidScore:
+    def __init__(self, plasmid_info):
+        self.plasmid = plasmid_info[0]
+        self.score = plasmid_info[1]
 
 
 # This is PlasmidExtractor. It will get plasmid sequences out of raw reads.
+def compare(plasmid, read_db, cutoff):
+    plasmid = plasmid.replace('.kmc_pre', '')
+    db = os.path.split(plasmid)[-1]
+    # kmc.kmc(plasmid, db, fm='', tmpdir=db + 'tmp')
+    kmc.intersect(plasmid, read_db, db + '_intersect')
+    kmc.dump(plasmid, db + '_dump')
+    kmc.dump(db + '_intersect', db + '_intersect_dump')
+    plasmid_kmers = accessoryfunctions.file_len(db + '_dump')
+    read_kmers = accessoryfunctions.file_len(db + '_intersect_dump')
+    percent = float(read_kmers)/float(plasmid_kmers)
+    to_remove = glob.glob(db + '*')
+    for item in to_remove:
+        try:
+            os.remove(item)
+        except:
+            pass
+    if percent > cutoff:
+        return [plasmid, percent]
+    else:
+        return ['NA', percent]
+
+
+def find_plasmids(reads, kmer_db, cutoff, threads=4):
+    plasmids = list()
+    kmc.kmc(reads, 'read_db', min_occurrences=2)
+    plasmid_files = glob.glob(kmer_db + '/*.kmc_pre')
+    read_list = ['read_db'] * len(plasmid_files)
+    cutoff_list = [cutoff] * len(plasmid_files)
+    pool = multiprocessing.Pool(processes=threads)
+    results = pool.starmap(compare, zip(plasmid_files, read_list, cutoff_list))
+    pool.close()
+    pool.join()
+    for result in results:
+        if result[0] != 'NA':
+            x = PlasmidScore(result)
+            plasmids.append(result[0])
+            # print(x.plasmid)
+            # print(x.score)
+    return plasmids
+
 
 def find_paired_reads(fastq_directory, forward_id='R1', reverse_id='R2'):
     """
@@ -161,6 +208,16 @@ def remove_plasmid_from_reads(plasmid_sequences, forward_in, reverse_in, forward
 
 
 def filter_plasmids(plasmids, tmpdir, kmer_db, sequence_db, logfile='logfile.log'):
+    """
+    When given a list of plasmid files, figures out which ones are very similar to each other and can be ignored,
+    picking only one of them.
+    :param plasmids: List of paths to plasmid files (these must be in fasta format!).
+    :param tmpdir: Temporary directory where some stuff will get placed.
+    :param kmer_db: Directory with kmerized plasmid files.
+    :param sequence_db: Directory with sequence files in fasta format.
+    :param logfile: Logfile to write stdout and stderr of commands to.
+    :return: List of plasmids that are relatively unrelated.
+    """
     # Given a list of plasmids, try to figure out which ones are overly similar and should be disregarded.
     print('Filtering plasmids.')
     # Step 1: Sketch all of the plasmids.
@@ -188,14 +245,17 @@ def filter_plasmids(plasmids, tmpdir, kmer_db, sequence_db, logfile='logfile.log
 
 
 def check_dependencies():
-    dependencies = ['samtools', 'bcftools', 'blastn', 'bedtools', 'bbmap.sh', 'bbduk.sh', 'mash', 'kmc']
+    """
+    Makes sure all the programs that need to be installed are installed.
+    """
+    dependencies = ['samtools', 'bcftools', 'bedtools', 'bbmap.sh', 'bbduk.sh', 'mash', 'kmc']
     for dep in dependencies:
         is_present = shutil.which(dep)
         if is_present is None:
             raise ModuleNotFoundError('ERROR! Could not find executable for: {}!'.format(dep))
 
 
-class PlasmidExtractor(object):
+class PlasmidExtractor:
     def __init__(self, reads, args):
         self.forward_reads = reads[0]
         self.reverse_reads = reads[1]
@@ -205,6 +265,7 @@ class PlasmidExtractor(object):
         self.logfile = self.output_base + '.log'
         self.kmer_db = args.kmer_db
         self.sequence_db = args.sequence_db
+        self.cutoff = args.cutoff
 
     def main(self):
         self.only_reads()
@@ -233,7 +294,7 @@ class PlasmidExtractor(object):
         # kmerize_reads(tmpdir + 'interleaved.fastq', tmpdir + 'reads.tab', logfile=self.logfile, threads=self.threads)
         print('Searching for plasmids in raw reads...')
         # plasmids = kmer_overlap.find_plasmids(tmpdir + 'reads.tab', self.kmer_db, threads=self.threads)
-        plasmids = kmc_overlap.find_plasmids(tmpdir + 'interleaved.fastq', self.kmer_db, threads=self.threads)
+        plasmids = find_plasmids(tmpdir + 'interleaved.fastq', self.kmer_db, self.cutoff, threads=self.threads)
         # plasmids = parse_read_mash_output('tmp/mash_output')
         # Step 3: For each very likely plasmid, do reference mapping and generate a consensus sequence.
         finished_plasmids = list()
@@ -256,7 +317,6 @@ class PlasmidExtractor(object):
                                       self.output_base + '/' + out_forward,
                                       self.output_base + '/' + out_reverse,
                                       tmpdir + 'concatenated_plasmid.fasta', threads=self.threads)
-        print('Plasmid extraction complete!')
 
 
 if __name__ == '__main__':
@@ -286,6 +346,10 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='When specified, will keep the created tmp directory instead of deleting it.')
+    parser.add_argument('-c', '--cutoff',
+                        default=0.98,
+                        type=float,
+                        help='Similarity cutoff for finding plasmids.')
     args = parser.parse_args()
     paired_reads = find_paired_reads(args.input_directory)
     if not os.path.isdir(args.output_dir):
@@ -293,4 +357,5 @@ if __name__ == '__main__':
     for pair in paired_reads:
         extractor = PlasmidExtractor(pair, args)
         extractor.main()
-
+    # Now need to do some post-analysis on the plasmids found (optionally) to figure out things like how similar they
+    # are, what resistance/virulence genes they have, and all that fun stuff.

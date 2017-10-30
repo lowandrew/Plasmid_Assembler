@@ -4,9 +4,12 @@ import multiprocessing
 import argparse
 import glob
 import os
+import subprocess
+from scipy import cluster
 from biotools import bbtools
 from biotools import kmc
 from biotools import accessoryfunctions
+from biotools import mash
 
 # The original Plasmid Extractor has largely become an unmanageable mess, as the way it works is drastically
 # different from what I'd planned. This will attempt to take its place, with a design that actually makes sense.
@@ -81,6 +84,11 @@ class PlasmidExtractor:
         # the potential plasmids, and values as the kmer identity level.
         print('Searching for potential plasmids...')
         self.find_plasmids()
+        plasmids_to_use = self.filter_potential_plasmids()
+        print('Generating consensus sequences...')
+        for plasmid in plasmids_to_use:
+            generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid.replace(self.kmer_db, self.sequence_db),
+                               self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta', threads=self.threads)
 
     def find_plasmids(self):
         read_db = os.path.join(self.tmpdir, 'read_db')
@@ -97,7 +105,53 @@ class PlasmidExtractor:
                 self.potential_plasmids[result[0]] = result[1]
 
     def filter_potential_plasmids(self):
-        print('Filtering!')
+        print('Filtering out plasmids that are too similar...')
+        # Need to come up with a good way to filter sequences. Mash should offer some way of doing this, but I'm having
+        # trouble figuring out exactly how to go about this.
+        # Step 1 in the filtering process: Use mash to find distances between all plasmids.
+        mash_results = list()
+        i = 0
+        for query_plasmid in self.potential_plasmids:
+            mash_results.append(list())
+            for reference_plasmid in self.potential_plasmids:
+                mash.dist(query_plasmid.replace(self.kmer_db, self.sequence_db),
+                          reference_plasmid.replace(self.kmer_db, self.sequence_db), output_file='distances.tab')
+                x = mash.read_mash_output('distances.tab')
+                mash_results[i].append(x)
+            i += 1
+        # Now have a list of all mash results, so pairwise distances are known. Now need to transform the data
+        # into a matrix that SciPy can use.
+        matrix = list()
+        iteration = 1
+        for result in mash_results:
+            j = 1
+            for item in result:
+                if j > iteration:
+                    matrix.append(item[0].distance)
+                j += 1
+            iteration += 1
+        # Perform UPGMA clustering on the matrix created from mash distance values.
+        z = cluster.hierarchy.linkage(matrix, method='average')
+        # Get a list of clusters at our cutoff.
+        clustering = cluster.hierarchy.fcluster(z, 0.9)
+        num_clusters = max(clustering)
+        clusters = list()
+        # Create our clusters.
+        for i in range(num_clusters):
+            clusters.append(list())
+        plasmid_names = list(self.potential_plasmids.keys())
+        for i in range(len(clustering)):
+            clusters[clustering[i] - 1].append(plasmid_names[i])
+        # Iterate through clusters, and use the highest scoring plasmid from each cluster for further analysis.
+        plasmids_to_use = list()
+        for group in clusters:
+            max_score = 0
+            best_hit = ''
+            for strain in group:
+                if self.potential_plasmids[strain] > max_score:
+                    best_hit = strain
+            plasmids_to_use.append(best_hit)
+        return plasmids_to_use
 
     @staticmethod
     def compare(plasmid, read_db, cutoff):
@@ -150,6 +204,57 @@ def find_paired_reads(fastq_directory, forward_id='R1', reverse_id='R2'):
             pair_list.append([name, name.replace(forward_id, reverse_id)])
     return pair_list
 
+
+def generate_consensus(forward_reads, reverse_reads, reference_fasta, output_fasta, logfile='logfile.log',
+                       cleanup=True, output_base='out', threads=4):
+    """
+    Generates a consensus fasta give a set of interleaved reads and a reference sequence.
+    :param reads: Interleaved reads.
+    :param reference_fasta: Reference you want to map your reads to.
+    :param output_fasta: Output file for your consensus fasta.
+    :param logfile: Log to write stdout and stderr to.
+    :param cleanup: If true, deletes intermediate files.
+    :param output_base: Base name for output files.
+    :param threads: Number of threads to run analysis with.
+    """
+    with open(logfile, 'a+') as log:
+        # Step 1: Index fasta file
+        cmd = 'samtools faidx {}'.format(reference_fasta)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 2: Run bbmap to generate sam/bamfile.
+        cmd = 'bbmap.sh ref={} in={} in2={} out={} nodisk overwrite threads={}'.format(reference_fasta, forward_reads,
+                                                                                       reverse_reads, output_base + '.bam',
+                                                                                       str(threads))
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 3: Sort the bam file.
+        cmd = 'samtools sort {}.bam -o {}_sorted.bam'.format(output_base, output_base)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 3.1: Use bedtools + some shell magic to find regions with zero coverage that we'd like to be Ns.
+        # Ideally, change this from awk at some point to make it more generalizable.
+        cmd = 'bedtools genomecov -ibam {}_sorted.bam -bga | awk \'$4 == 0\' > {}.bed'.format(output_base, output_base)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 3.2: Fancy bcftools piping to generate vcf file.
+        cmd = 'bcftools mpileup --threads {} -Ou -f {} {}_sorted.bam | bcftools call --threads {} -mv -Oz -o {}.vcf.gz'\
+              ''.format(str(threads), reference_fasta, output_base, str(threads), output_base)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 4: Index vcf file.
+        cmd = 'tabix {}.vcf.gz'.format(output_base)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 5: Generate consensus fasta from vcf file.
+        cmd = 'cat {} | bcftools consensus {}.vcf.gz > {}'.format(reference_fasta, output_base, 'tmp.fasta')
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+        # Step 6: Mask regions that don't have any coverage using bedtools.
+        cmd = 'bedtools maskfasta -fi tmp.fasta -bed {}.bed -fo {}'.format(output_base, output_fasta)
+        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+
+    if cleanup:
+        to_delete = [output_base + '.bam', reference_fasta + '.fai', output_base + '_sorted.bam',
+                     output_base + '.vcf.gz', output_base + '.vcf.gz.tbi', output_base + '.bed', 'tmp.fasta']
+        for item in to_delete:
+            try:
+                os.remove(item)
+            except FileNotFoundError:
+                pass
 
 if __name__ == '__main__':
     num_cpus = multiprocessing.cpu_count()

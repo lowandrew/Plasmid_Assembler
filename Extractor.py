@@ -11,9 +11,7 @@ from biotools import kmc
 from biotools import accessoryfunctions
 from biotools import mash
 
-# The original Plasmid Extractor has largely become an unmanageable mess, as the way it works is drastically
-# different from what I'd planned. This will attempt to take its place, with a design that actually makes sense.
-
+# TODO: Add logfile in near future (even though it's boring and you really don't want to).
 
 """
 Workflow:
@@ -56,6 +54,8 @@ class PlasmidExtractor:
         self.reverse_trimmed = os.path.join(self.tmpdir, reverse_base.replace('.f', '_trimmed.f'))
         self.forward_plasmid = os.path.join(self.tmpdir, forward_base.replace('.f', '_plasmid.f'))
         self.reverse_plasmid = os.path.join(self.tmpdir, reverse_base.replace('.f', '_plasmid.f'))
+        self.forward_no_plasmid = os.path.join(self.output_base, forward_base.replace('.f', '_noplasmid.f'))
+        self.reverse_no_plasmid = os.path.join(self.output_base, reverse_base.replace('.f', '_noplasmid.f'))
         self.threads = args.threads
         self.keep_tmpfiles = args.keep_tmpfiles
         self.logfile = self.output_base + '.log'
@@ -63,7 +63,8 @@ class PlasmidExtractor:
         self.sequence_db = args.sequence_db
         self.cutoff = args.cutoff
         self.potential_plasmids = dict()
-        self.report = args.report
+        self.report = os.path.join(args.output_dir, args.report)
+        self.consensus_plasmids = list()
 
     def main(self):
         if not os.path.isdir(self.tmpdir):
@@ -84,11 +85,29 @@ class PlasmidExtractor:
         # the potential plasmids, and values as the kmer identity level.
         print('Searching for potential plasmids...')
         self.find_plasmids()
-        plasmids_to_use = self.filter_potential_plasmids()
-        print('Generating consensus sequences...')
-        for plasmid in plasmids_to_use:
-            generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid.replace(self.kmer_db, self.sequence_db),
-                               self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta', threads=self.threads)
+        # If no potential plasmids were found, we can skip over the rest of this.
+        if len(self.potential_plasmids) > 0:
+            # Get a list of plasmids we actually want to use - Often, there are a lot of hits to very similar plasmids.
+            # We'll take only the best hit.
+            plasmids_to_use = self.filter_potential_plasmids()
+            # Append to our plasmid report, with info on strain, plasmids present, and the similarity score.
+            with open(self.report, 'a+') as f:
+                for plasmid in plasmids_to_use:
+                    f.write('{},{},{}\n'.format(self.output_base, plasmid, str(self.potential_plasmids[plasmid])))
+            print('Generating consensus sequences...')
+            # Generate consensus plasmids, and also keep track of the file locations for those plasmids, as they get
+            # used later.
+            for plasmid in plasmids_to_use:
+                generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid.replace(self.kmer_db, self.sequence_db),
+                                   self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta', threads=self.threads)
+                self.consensus_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
+            print('Generating plasmid-free reads...')
+            # Remove plasmid from reads.
+            self.remove_plasmid_from_reads()
+
+        # Remove temporary files, unless use for some reason wanted to keep them.
+        if not self.keep_tmpfiles:
+            shutil.rmtree(self.tmpdir)
 
     def find_plasmids(self):
         read_db = os.path.join(self.tmpdir, 'read_db')
@@ -106,8 +125,6 @@ class PlasmidExtractor:
 
     def filter_potential_plasmids(self):
         print('Filtering out plasmids that are too similar...')
-        # Need to come up with a good way to filter sequences. Mash should offer some way of doing this, but I'm having
-        # trouble figuring out exactly how to go about this.
         # Step 1 in the filtering process: Use mash to find distances between all plasmids.
         mash_results = list()
         i = 0
@@ -132,8 +149,9 @@ class PlasmidExtractor:
             iteration += 1
         # Perform UPGMA clustering on the matrix created from mash distance values.
         z = cluster.hierarchy.linkage(matrix, method='average')
-        # Get a list of clusters at our cutoff.
-        clustering = cluster.hierarchy.fcluster(z, 0.9)
+        # Get a list of clusters at our cutoff. Testing seems to show that the cutoff at 0.1 works well.
+        # Will need to do a somewhat more extensive set of testing in the not too distant future.
+        clustering = cluster.hierarchy.fcluster(z, 0.1, criterion='distance')
         num_clusters = max(clustering)
         clusters = list()
         # Create our clusters.
@@ -174,6 +192,17 @@ class PlasmidExtractor:
         else:
             return ['NA', percent]
 
+    def remove_plasmid_from_reads(self):
+        # First, generate a concatenated fasta.
+        with open(os.path.join(self.output_base, 'plasmids_concatenated.fasta'), 'w') as outfile:
+            for sequence in self.consensus_plasmids:
+                with open(sequence) as infile:
+                    outfile.write(infile.read())
+        # Filter out reads that contain sequence that is in the concatenated fasta file.
+        bbtools.bbduk_filter(reference=os.path.join(self.output_base, 'plasmids_concatenated.fasta'), forward_in=self.forward_trimmed,
+                             reverse_in=self.reverse_trimmed, forward_out=self.forward_no_plasmid,
+                             reverse_out=self.reverse_no_plasmid, overwrite='t')
+
 
 def check_dependencies():
     """
@@ -209,7 +238,8 @@ def generate_consensus(forward_reads, reverse_reads, reference_fasta, output_fas
                        cleanup=True, output_base='out', threads=4):
     """
     Generates a consensus fasta give a set of interleaved reads and a reference sequence.
-    :param reads: Interleaved reads.
+    :param forward_reads: Forward input reads.
+    :param reverse_reads: Reverse input reads.
     :param reference_fasta: Reference you want to map your reads to.
     :param output_fasta: Output file for your consensus fasta.
     :param logfile: Log to write stdout and stderr to.
@@ -256,6 +286,39 @@ def generate_consensus(forward_reads, reverse_reads, reference_fasta, output_fas
             except FileNotFoundError:
                 pass
 
+
+class PlasmidAnalyzer:
+    def __init__(self, args):
+        self.sourmash_matrix = os.path.join(args.output_dir, 'plasmid')
+        self.output_dir = args.output_dir
+        self.keep_tmpfiles = args.keep_tmpfiles
+        self.logfile = self.output_dir + '/sourmash.log'
+
+    def sourmash(self):
+        concatenated_fastas = glob.glob(self.output_dir + '/*/plasmids_concatenated.fasta')
+        # Don't bother if there's only one sample, because then there's nothing to compare to.
+        if len(concatenated_fastas) > 1:
+            cmd = 'sourmash compute --force --output {} '.format(os.path.join(self.output_dir, 'sourmash_computed'))
+            for fasta in concatenated_fastas:
+                cmd += fasta + ' '
+            with open(self.logfile, 'w') as logfile:
+                subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
+                os.system(cmd)
+                cmd = 'sourmash compare --output {} {}'.format(os.path.join(self.output_dir, 'sourmash_compared'),
+                                                               os.path.join(self.output_dir, 'sourmash_computed'))
+                subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
+                # Can't find any way to specify output location for output file. To be investigated.
+                cmd = 'sourmash plot --labels {}'.format(os.path.join(self.output_dir, 'sourmash_compared'))
+                subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
+
+            if not self.keep_tmpfiles:
+                os.remove(os.path.join(self.output_dir, 'sourmash_compared'))
+                os.remove(os.path.join(self.output_dir, 'sourmash_computed'))
+
+    def main(self):
+        self.sourmash()
+
+
 if __name__ == '__main__':
     num_cpus = multiprocessing.cpu_count()
     check_dependencies()
@@ -279,7 +342,7 @@ if __name__ == '__main__':
                         type=str,
                         required=True,
                         help='Path to directory containing the paired fastq files to be analyzed.')
-    parser.add_argument('-k', '--keep-tmpfiles',
+    parser.add_argument('-k', '--keep_tmpfiles',
                         default=False,
                         action='store_true',
                         help='When specified, will keep the created tmp directory instead of deleting it.')
@@ -292,7 +355,14 @@ if __name__ == '__main__':
                         type=str,
                         help='Name of report to be created by PlasmidExtractor.')
     args = parser.parse_args()
+    if not os.path.isdir(args.output_dir):
+        os.makedirs(args.output_dir)
+    with open(os.path.join(args.output_dir, args.report), 'w') as f:
+        f.write('Sample,Plasmid,Score\n')
     paired_reads = find_paired_reads(args.input_directory)
     for pair in paired_reads:
         extractor = PlasmidExtractor(args, pair)
         extractor.main()
+    # Now do some post-analysis. Sourmash for nice visualization, AMR gene finding, and maybe more?...
+    analyzer = PlasmidAnalyzer(args)
+    analyzer.main()

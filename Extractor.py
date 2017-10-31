@@ -303,7 +303,6 @@ class PlasmidAnalyzer:
                 cmd += fasta + ' '
             with open(self.logfile, 'w') as logfile:
                 subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
-                os.system(cmd)
                 cmd = 'sourmash compare --output {} {}'.format(os.path.join(self.output_dir, 'sourmash_compared'),
                                                                os.path.join(self.output_dir, 'sourmash_computed'))
                 subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
@@ -354,12 +353,20 @@ if __name__ == '__main__':
                         default='plasmidReport.csv',
                         type=str,
                         help='Name of report to be created by PlasmidExtractor.')
+    parser.add_argument('-fid', '--forward_id',
+                        default='R1',
+                        type=str,
+                        help='Identifier for forward reads.')
+    parser.add_argument('-rid', '--reverse_id',
+                        default='R2',
+                        type=str,
+                        help='Identifier for forward reads.')
     args = parser.parse_args()
     if not os.path.isdir(args.output_dir):
         os.makedirs(args.output_dir)
     with open(os.path.join(args.output_dir, args.report), 'w') as f:
         f.write('Sample,Plasmid,Score\n')
-    paired_reads = find_paired_reads(args.input_directory)
+    paired_reads = find_paired_reads(args.input_directory, forward_id=args.forward_id, reverse_id=args.reverse_id)
     for pair in paired_reads:
         extractor = PlasmidExtractor(args, pair)
         extractor.main()

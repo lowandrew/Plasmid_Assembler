@@ -25,6 +25,7 @@ In `requirements.txt`. Use `pip3 install -r requirements.txt` to download and in
 #### Running Plasmid Extractor
 
 `python3 Extractor.py -o output_dir -sdb plasmid_sequences -i read_directory`
+
 Where `output_dir` is where you want your results stored, `plasmid_sequences` is the path to the nucleotideseq.fa file that was downloaded, and `read_directory` is the path to a folder containing your
 FASTQ sequences to be analyzed.
 
@@ -36,7 +37,7 @@ will be in the output directory. A file called _plasmidInfo.csv_ will be created
 
 #### Options
 
-`
+```
 usage: Extractor.py [-h] -o OUTPUT_DIR -sdb SEQUENCE_DB [-t THREADS] -i
                     INPUT_DIRECTORY [-k] [-c CUTOFF] [-r REPORT]
                     [-fid FORWARD_ID] [-rid REVERSE_ID]
@@ -63,4 +64,4 @@ optional arguments:
                         Identifier for forward reads.
   -rid REVERSE_ID, --reverse_id REVERSE_ID
                         Identifier for forward reads.
-`
+``

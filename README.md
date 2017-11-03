@@ -1,7 +1,7 @@
 # Plasmid Assembler
 
 Plasmid Assembler doesn't really assemble plasmids, but instead finds plasmids in raw reads that match
-to known plasmids and constructs a consensus sequence for that plasmid.
+to known plasmids and (optionally) constructs a consensus sequence for that plasmid.
 
 ### Program Dependencies
 
@@ -29,10 +29,9 @@ In `requirements.txt`. Use `pip3 install -r requirements.txt` to download and in
 Where `output_dir` is where you want your results stored, `plasmid_sequences` is the path to the nucleotideseq.fa file that was downloaded, and `read_directory` is the path to a folder containing your
 FASTQ sequences to be analyzed.
 
-If no plasmids are found, the output directory will be empty.
 
 If plasmids are found, reads without plasmid sequence in them, as well as a fasta file for each plasmid, 
-will be in the output directory. A file called _plasmidInfo.csv_ will be created in the output directory.
+will be in subfolders in the output directory. A file called _plasmidReport.csv_ will be created in the output directory.
 
 
 #### Options
@@ -40,7 +39,7 @@ will be in the output directory. A file called _plasmidInfo.csv_ will be created
 ```
 usage: Extractor.py [-h] -o OUTPUT_DIR -sdb SEQUENCE_DB [-t THREADS] -i
                     INPUT_DIRECTORY [-k] [-c CUTOFF] [-r REPORT]
-                    [-fid FORWARD_ID] [-rid REVERSE_ID]
+                    [-fid FORWARD_ID] [-rid REVERSE_ID] [-nc]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -64,4 +63,9 @@ optional arguments:
                         Identifier for forward reads.
   -rid REVERSE_ID, --reverse_id REVERSE_ID
                         Identifier for forward reads.
-``
+  -nc, --no_consensus   When enabled, consenus sequences will not be
+                        generated, which saves a fair bit of time. Report of
+                        plasmid presence will still be found in
+                        plasmidReport.csv
+
+```

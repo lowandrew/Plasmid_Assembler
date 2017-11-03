@@ -5,14 +5,14 @@ import argparse
 import glob
 import os
 import subprocess
+import time
 from Bio import SeqIO
 from scipy import cluster
 from biotools import bbtools
 from biotools import kmc
 from biotools import accessoryfunctions
 from biotools import mash
-
-# TODO: Add logfile in near future (even though it's boring and you really don't want to).
+from accessoryFunctions import accessoryFunctions
 
 """
 Workflow:
@@ -42,7 +42,8 @@ Have object for each sample that tracks plasmids present, scores, amr genes pres
 
 
 class PlasmidExtractor:
-    def __init__(self, args, reads):
+    def __init__(self, args, reads, start):
+        self.start = start
         self.forward_reads = reads[0]
         self.reverse_reads = reads[1]
         if not os.path.isdir(args.output_dir):
@@ -65,6 +66,7 @@ class PlasmidExtractor:
         self.potential_plasmids = dict()
         self.report = os.path.join(args.output_dir, args.report)
         self.consensus_plasmids = list()
+        self.no_consensus = args.no_consensus
 
     def main(self):
         if not os.path.isdir(self.tmpdir):
@@ -72,19 +74,32 @@ class PlasmidExtractor:
         if not os.path.isdir(self.output_base):
             os.makedirs(self.output_base)
         # Get forward and reverse reads trimmed.
-        print('Quality trimming input reads for {sample}...'.format(sample=self.forward_reads))
-        bbtools.bbduk_trim(forward_in=self.forward_reads, forward_out=self.forward_trimmed,
-                           reverse_in=self.reverse_reads, reverse_out=self.reverse_trimmed, overwrite='t')
+        accessoryFunctions.printtime('Quality trimming input reads for {sample}...'.format(sample=self.forward_reads),
+                                     self.start)
+        out, err = bbtools.bbduk_trim(forward_in=self.forward_reads, forward_out=self.forward_trimmed,
+                                      reverse_in=self.reverse_reads, reverse_out=self.reverse_trimmed, overwrite='t')
+        with open(self.logfile, 'a+') as logfile:
+            logfile.write(out + '\n')
+            logfile.write(err + '\n')
         # Extract plasmid reads.
-        print('Baiting out plasmid reads for {sample}...'.format(sample=self.forward_reads))
-        bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
-                           forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
-                           reverse_out=self.reverse_plasmid, overwrite='t')
+        accessoryFunctions.printtime('Baiting out plasmid reads for {sample}...'.format(sample=self.forward_reads),
+                                     self.start)
+        out, err = bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
+                                      forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
+                                      reverse_out=self.reverse_plasmid, overwrite='t')
+        with open(self.logfile, 'a+') as logfile:
+            logfile.write(out + '\n')
+            logfile.write(err + '\n')
         # See what plasmids have kmer identity above cutoff. Will make self.potential_plasmids into a dict with keys as
         # the potential plasmids, and values as the kmer identity level.
         # TODO: Add a step to generate plasmid sketch if necessary before this step.
         # Use mash screen to get a quick list of potential plasmids.
-        mash.screen('plasmid.msh', self.forward_plasmid, self.reverse_plasmid, threads=self.threads, w='', i=self.cutoff)
+        accessoryFunctions.printtime('Searching reads for plasmids...', self.start)
+        out, err = mash.screen('plasmid.msh', self.forward_plasmid, self.reverse_plasmid,
+                               threads=self.threads, w='', i=self.cutoff)
+        with open(self.logfile, 'a+') as logfile:
+            logfile.write(out + '\n')
+            logfile.write(err + '\n')
         results = mash.read_mash_screen('screen.tab')
         # Get a list of potential plasmids from mash screen output.
         plasmids_present = list()
@@ -103,20 +118,23 @@ class PlasmidExtractor:
             # Get a list of plasmids we actually want to use - Often, there are a lot of hits to very similar plasmids.
             # We'll take only the best hit.
             plasmids_to_use = self.filter_potential_plasmids()
+            accessoryFunctions.printtime('Found {} plasmids...'.format(str(len(plasmids_to_use))), self.start)
             # Append to our plasmid report, with info on strain, plasmids present, and the similarity score.
             with open(self.report, 'a+') as f:
                 for plasmid in plasmids_to_use:
                     f.write('{},{},{}\n'.format(self.output_base, plasmid, str(self.potential_plasmids[plasmid])))
-            print('Generating consensus sequences...')
-            # Generate consensus plasmids, and also keep track of the file locations for those plasmids, as they get
-            # used later.
-            for plasmid in plasmids_to_use:
-                generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid,
-                                   self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta', threads=self.threads)
-                self.consensus_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
-            print('Generating plasmid-free reads...')
-            # Remove plasmid from reads.
-            self.remove_plasmid_from_reads()
+            if not args.no_consensus:
+                accessoryFunctions.printtime('Generating consensus sequences...', self.start)
+                # Generate consensus plasmids, and also keep track of the file locations for those plasmids, as they get
+                # used later.
+                for plasmid in plasmids_to_use:
+                    generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid,
+                                       self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta',
+                                       threads=self.threads, logfile=self.logfile)
+                    self.consensus_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
+                accessoryFunctions.printtime('Generating plasmid-free reads...', self.start)
+                # Remove plasmid from reads.
+                self.remove_plasmid_from_reads()
 
         # Remove temporary files, unless use for some reason wanted to keep them.
         if not self.keep_tmpfiles:
@@ -137,7 +155,6 @@ class PlasmidExtractor:
                 self.potential_plasmids[result[0]] = result[1]
 
     def filter_potential_plasmids(self):
-        print('Filtering out plasmids that are too similar...')
         # Having only one potential plasmid causes the attempt a clustering to fail, as you can't really dendrogram
         # with only one item. If this is the case, just return the one plasmid.
         if len(self.potential_plasmids) == 1:
@@ -217,9 +234,13 @@ class PlasmidExtractor:
                 with open(sequence) as infile:
                     outfile.write(infile.read())
         # Filter out reads that contain sequence that is in the concatenated fasta file.
-        bbtools.bbduk_filter(reference=os.path.join(self.output_base, 'plasmids_concatenated.fasta'), forward_in=self.forward_trimmed,
-                             reverse_in=self.reverse_trimmed, forward_out=self.forward_no_plasmid,
-                             reverse_out=self.reverse_no_plasmid, overwrite='t')
+        out, err = bbtools.bbduk_filter(reference=os.path.join(self.output_base, 'plasmids_concatenated.fasta'),
+                                        forward_in=self.forward_trimmed,
+                                        reverse_in=self.reverse_trimmed, forward_out=self.forward_no_plasmid,
+                                        reverse_out=self.reverse_no_plasmid, overwrite='t')
+        with open(self.logfile, 'a+') as logfile:
+            logfile.write(out + '\n')
+            logfile.write(err + '\n')
 
 
 def check_dependencies():
@@ -346,6 +367,7 @@ class PlasmidAnalyzer:
 
 
 if __name__ == '__main__':
+    start = time.time()
     num_cpus = multiprocessing.cpu_count()
     check_dependencies()
     parser = argparse.ArgumentParser()
@@ -384,15 +406,24 @@ if __name__ == '__main__':
                         default='R2',
                         type=str,
                         help='Identifier for forward reads.')
+    parser.add_argument('-nc', '--no_consensus',
+                        default=False,
+                        action='store_true',
+                        help='When enabled, consenus sequences will not be generated, which saves a fair bit of time.'
+                             ' Report of plasmid presence will still be found in plasmidReport.csv')
     args = parser.parse_args()
+    # Get a logfile set up.
     if not os.path.isdir(args.output_dir):
         os.makedirs(args.output_dir)
     with open(os.path.join(args.output_dir, args.report), 'w') as f:
         f.write('Sample,Plasmid,Score\n')
     paired_reads = find_paired_reads(args.input_directory, forward_id=args.forward_id, reverse_id=args.reverse_id)
     for pair in paired_reads:
-        extractor = PlasmidExtractor(args, pair)
+        accessoryFunctions.printtime('Beginning plasmid extraction for {}...'.format(pair[0]), start)
+        extractor = PlasmidExtractor(args, pair, start)
         extractor.main()
+        accessoryFunctions.printtime('Finished plasmid extraction for {}...'.format(pair[0]), start)
     # Now do some post-analysis. Sourmash for nice visualization, AMR gene finding, and maybe more?...
-    analyzer = PlasmidAnalyzer(args)
-    analyzer.main()
+    if not args.no_consensus:
+        analyzer = PlasmidAnalyzer(args)
+        analyzer.main()

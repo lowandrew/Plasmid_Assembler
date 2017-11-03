@@ -1,5 +1,6 @@
 alabaster==0.7.10
 Babel==2.5.1
+biopython==1.70
 bz2file==0.98
 certifi==2017.7.27.1
 chardet==3.0.4
@@ -14,7 +15,7 @@ khmer==2.1.1
 MarkupSafe==1.0
 matplotlib==2.1.0
 numpy==1.13.3
-OLCTools==0.3.0
+OLCTools==0.3.4
 pkg-resources==0.0.0
 Pygments==2.2.0
 pyparsing==2.2.0

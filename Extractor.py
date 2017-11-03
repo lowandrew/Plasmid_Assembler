@@ -5,6 +5,7 @@ import argparse
 import glob
 import os
 import subprocess
+from Bio import SeqIO
 from scipy import cluster
 from biotools import bbtools
 from biotools import kmc
@@ -59,7 +60,6 @@ class PlasmidExtractor:
         self.threads = args.threads
         self.keep_tmpfiles = args.keep_tmpfiles
         self.logfile = self.output_base + '.log'
-        self.kmer_db = args.kmer_db
         self.sequence_db = args.sequence_db
         self.cutoff = args.cutoff
         self.potential_plasmids = dict()
@@ -75,15 +75,28 @@ class PlasmidExtractor:
         print('Quality trimming input reads for {sample}...'.format(sample=self.forward_reads))
         bbtools.bbduk_trim(forward_in=self.forward_reads, forward_out=self.forward_trimmed,
                            reverse_in=self.reverse_reads, reverse_out=self.reverse_trimmed, overwrite='t')
-        # TODO: Un-hardcode nucleotideseq.fa
         # Extract plasmid reads.
         print('Baiting out plasmid reads for {sample}...'.format(sample=self.forward_reads))
-        bbtools.bbduk_bait(reference='nucleotideseq.fa', forward_in=self.forward_trimmed,
+        bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
                            forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
                            reverse_out=self.reverse_plasmid, overwrite='t')
         # See what plasmids have kmer identity above cutoff. Will make self.potential_plasmids into a dict with keys as
         # the potential plasmids, and values as the kmer identity level.
-        print('Searching for potential plasmids...')
+        # TODO: Add a step to generate plasmid sketch if necessary before this step.
+        # Use mash screen to get a quick list of potential plasmids.
+        mash.screen('plasmid.msh', self.forward_plasmid, self.reverse_plasmid, threads=self.threads, w='', i=self.cutoff)
+        results = mash.read_mash_screen('screen.tab')
+        # Get a list of potential plasmids from mash screen output.
+        plasmids_present = list()
+        for result in results:
+            plasmids_present.append(result.query_id)
+        # Go through the multifasta and write each of the potential plasmids to the tmp directory.
+        # Also kmerize the plasmids.
+        for record in SeqIO.parse(self.sequence_db, 'fasta'):
+            if record.id in plasmids_present:
+                SeqIO.write(record, os.path.join(self.tmpdir, record.id), 'fasta')
+                kmc.kmc(os.path.join(self.tmpdir, record.id), os.path.join(self.tmpdir, record.id), fm='')
+        # print('Searching for potential plasmids...')
         self.find_plasmids()
         # If no potential plasmids were found, we can skip over the rest of this.
         if len(self.potential_plasmids) > 0:
@@ -98,7 +111,7 @@ class PlasmidExtractor:
             # Generate consensus plasmids, and also keep track of the file locations for those plasmids, as they get
             # used later.
             for plasmid in plasmids_to_use:
-                generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid.replace(self.kmer_db, self.sequence_db),
+                generate_consensus(self.forward_plasmid, self.reverse_plasmid, plasmid,
                                    self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta', threads=self.threads)
                 self.consensus_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
             print('Generating plasmid-free reads...')
@@ -111,8 +124,8 @@ class PlasmidExtractor:
 
     def find_plasmids(self):
         read_db = os.path.join(self.tmpdir, 'read_db')
+        plasmid_files = glob.glob(self.tmpdir + '/*.kmc_pre')
         kmc.kmc(self.forward_plasmid, read_db, reverse_in=self.reverse_plasmid)
-        plasmid_files = glob.glob(self.kmer_db + '/*.kmc_pre')
         read_list = [read_db] * len(plasmid_files)
         cutoff_list = [self.cutoff] * len(plasmid_files)
         pool = multiprocessing.Pool(processes=self.threads)
@@ -125,14 +138,18 @@ class PlasmidExtractor:
 
     def filter_potential_plasmids(self):
         print('Filtering out plasmids that are too similar...')
+        # Having only one potential plasmid causes the attempt a clustering to fail, as you can't really dendrogram
+        # with only one item. If this is the case, just return the one plasmid.
+        if len(self.potential_plasmids) == 1:
+            plasmids_to_use = list(self.potential_plasmids.keys())
+            return plasmids_to_use
         # Step 1 in the filtering process: Use mash to find distances between all plasmids.
         mash_results = list()
         i = 0
         for query_plasmid in self.potential_plasmids:
             mash_results.append(list())
             for reference_plasmid in self.potential_plasmids:
-                mash.dist(query_plasmid.replace(self.kmer_db, self.sequence_db),
-                          reference_plasmid.replace(self.kmer_db, self.sequence_db), output_file='distances.tab')
+                mash.dist(query_plasmid, reference_plasmid, output_file='distances.tab')
                 x = mash.read_mash_output('distances.tab')
                 mash_results[i].append(x)
             i += 1
@@ -155,19 +172,20 @@ class PlasmidExtractor:
         num_clusters = max(clustering)
         clusters = list()
         # Create our clusters.
+        plasmids_to_use = list()
         for i in range(num_clusters):
             clusters.append(list())
         plasmid_names = list(self.potential_plasmids.keys())
         for i in range(len(clustering)):
             clusters[clustering[i] - 1].append(plasmid_names[i])
         # Iterate through clusters, and use the highest scoring plasmid from each cluster for further analysis.
-        plasmids_to_use = list()
         for group in clusters:
             max_score = 0
             best_hit = ''
             for strain in group:
                 if self.potential_plasmids[strain] > max_score:
                     best_hit = strain
+                    max_score = self.potential_plasmids[strain]
             plasmids_to_use.append(best_hit)
         return plasmids_to_use
 
@@ -298,21 +316,30 @@ class PlasmidAnalyzer:
         concatenated_fastas = glob.glob(self.output_dir + '/*/plasmids_concatenated.fasta')
         # Don't bother if there's only one sample, because then there's nothing to compare to.
         if len(concatenated_fastas) > 1:
-            cmd = 'sourmash compute --force --output {} '.format(os.path.join(self.output_dir, 'sourmash_computed'))
+            cmd = 'sourmash compute --force --output {} '.format(os.path.join(self.output_dir, 'computed'))
             for fasta in concatenated_fastas:
                 cmd += fasta + ' '
             with open(self.logfile, 'w') as logfile:
                 subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
-                cmd = 'sourmash compare --output {} {}'.format(os.path.join(self.output_dir, 'sourmash_compared'),
-                                                               os.path.join(self.output_dir, 'sourmash_computed'))
+                cmd = 'sourmash compare --output {} {}'.format(os.path.join(self.output_dir, 'compared'),
+                                                               os.path.join(self.output_dir, 'computed'))
                 subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
                 # Can't find any way to specify output location for output file. To be investigated.
-                cmd = 'sourmash plot --labels {}'.format(os.path.join(self.output_dir, 'sourmash_compared'))
+                cmd = 'sourmash plot --labels {}'.format(os.path.join(self.output_dir, 'compared'))
                 subprocess.call(cmd, shell=True, stdout=logfile, stderr=logfile)
 
             if not self.keep_tmpfiles:
-                os.remove(os.path.join(self.output_dir, 'sourmash_compared'))
-                os.remove(os.path.join(self.output_dir, 'sourmash_computed'))
+                os.remove(os.path.join(self.output_dir, 'compared'))
+                os.remove(os.path.join(self.output_dir, 'computed'))
+
+            # Move dendrogram/matrix png files to results folder, since sourmash refuses to have the output name
+            # as an option.
+            # Leave this try/except until I've actually tested that this works.
+            try:
+                shutil.move('compared.matrix.png', os.path.join(self.output_dir, 'compared.matrix.png'))
+                shutil.move('compared.dendro.png', os.path.join(self.output_dir, 'compared.dendro.png'))
+            except:
+                pass
 
     def main(self):
         self.sourmash()
@@ -326,10 +353,6 @@ if __name__ == '__main__':
                         type=str,
                         required=True,
                         help='Output directory where results will be stored.')
-    parser.add_argument('-kdb', '--kmer_db',
-                        type=str,
-                        required=True,
-                        help='Path to directory containing kmerized plasmids.')
     parser.add_argument('-sdb', '--sequence_db',
                         type=str,
                         required=True,

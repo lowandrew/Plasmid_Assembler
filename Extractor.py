@@ -92,15 +92,22 @@ class PlasmidExtractor:
             logfile.write(err + '\n')
         # See what plasmids have kmer identity above cutoff. Will make self.potential_plasmids into a dict with keys as
         # the potential plasmids, and values as the kmer identity level.
-        # TODO: Add a step to generate plasmid sketch if necessary before this step.
-        # Use mash screen to get a quick list of potential plasmids.
-        accessoryFunctions.printtime('Searching reads for plasmids...', self.start)
-        out, err = mash.screen('plasmid.msh', self.forward_plasmid, self.reverse_plasmid,
-                               threads=self.threads, w='', i=self.cutoff)
+        out, err = mash.sketch(self.sequence_db, i='',
+                               threads=self.threads,
+                               output_sketch=os.path.join(self.tmpdir, 'plasmid.msh'))
         with open(self.logfile, 'a+') as logfile:
             logfile.write(out + '\n')
             logfile.write(err + '\n')
-        results = mash.read_mash_screen('screen.tab')
+        # Use mash screen to get a quick list of potential plasmids.
+        accessoryFunctions.printtime('Searching reads for plasmids...', self.start)
+        out, err = mash.screen(os.path.join(self.tmpdir, 'plasmid.msh'),
+                               self.forward_plasmid, self.reverse_plasmid,
+                               threads=self.threads, w='',
+                               i=self.cutoff, output_file=os.path.join(self.tmpdir, 'screen.tab'))
+        with open(self.logfile, 'a+') as logfile:
+            logfile.write(out + '\n')
+            logfile.write(err + '\n')
+        results = mash.read_mash_screen(os.path.join(self.tmpdir,'screen.tab'))
         # Get a list of potential plasmids from mash screen output.
         plasmids_present = list()
         for result in results:

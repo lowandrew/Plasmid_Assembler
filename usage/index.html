@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Usage - Plasmid Extractor</title>
+  
+
+  <link rel="shortcut icon" href="../img/favicon.ico">
+
+  
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../css/highlight.css">
+
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Usage";
+  </script>
+  
+  <script src="../js/jquery-2.1.1.min.js"></script>
+  <script src="../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../js/highlight.pack.js"></script>
+  <script src="../js/theme.js"></script> 
+
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href=".." class="icon icon-home"> Plasmid Extractor</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <ul class="current">
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="..">Home</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="../installation/">Installation</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 current">
+        <a class="current" href="./">Usage</a>
+        
+            <ul>
+            
+                <li class="toctree-l3"><a href="#quickstart">Quickstart</a></li>
+                
+            
+                <li class="toctree-l3"><a href="#detailed-usage">Detailed Usage</a></li>
+                
+                    <li><a class="toctree-l4" href="#mandatory-arguments">Mandatory Arguments</a></li>
+                
+                    <li><a class="toctree-l4" href="#optional-arguments">Optional Arguments</a></li>
+                
+            
+            </ul>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="../FAQ/">FAQ</a>
+        
+    </li>
+<li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="..">Plasmid Extractor</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="..">Docs</a> &raquo;</li>
+    
+      
+    
+    <li>Usage</li>
+    <li class="wy-breadcrumbs-aside">
+      
+        
+          <a href="https://github.com/lowandrew/Plasmid_Assembler" class="icon icon-github"> Edit on GitHub</a>
+        
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="quickstart">Quickstart</h1>
+<p>The basic usage of Plasmid Extractor is fairly simple. As input, you will need to provide:</p>
+<ul>
+<li>a folder containing paired-end reads that you think may have plasmids in them. It is assumed that forward reads contain 'R1' in their name and reverse reads contain 'R2' - see detailed usage for information on how to change this if your reads are named differently. </li>
+<li>a plasmid database (included with the PlasmidExtractor distribution) </li>
+<li>the path to a folder where you would like your output to be place (this folder will be created if it does not exist).</li>
+</ul>
+<p>For example, in order to analyze the reads in the directory <code>/home/user/reads</code> and place the output into <code>output</code> using the default plasmid database, the command would be:
+<code>python Extractor.py -i /home/user/reads -o output -sdb output</code></p>
+<p>Within the output directory, you will find the following:</p>
+<ul>
+<li>a CSV file called plasmidReport.csv, which shows the plasmids found for each sample, along with a score that shows (approximately) the percent identity to a reference plasmid</li>
+<li>a folder for each sample, which contains a FASTA file for each plasmid found, a FASTA file with the plasmids concatenated, and the input reads with any plasmid reads discarded</li>
+<li>if there was more than one sample, an image file showing a dendrogram of similarity of the total plasmid content of each sample, as well as a heatmap showing similarity</li>
+<li>a log file for each sample showing the output from each step of the pipeline </li>
+</ul>
+<h1 id="detailed-usage">Detailed Usage</h1>
+<p>The input parameters of Plasmid Extractor can be customized to your liking. Here are a few examples of different things that could be done:</p>
+<ul>
+<li>
+<p>Set identity cutoff to 0.8, to increase sensitivity at the cost of specificity.
+<code>python Extractor.py -i /home/user/reads -o output -sdb output -c 0.8</code></p>
+</li>
+<li>
+<p>Keep around temporary files created during execution to take a look at afterwards.
+<code>python Extractor.py -i /home/user/reads -o output -sdb output -k</code></p>
+</li>
+<li>
+<p>Don't generate sequences for plasmids found, for speedy analysis.
+<code>python Extractor.py -i /home/user/reads -o output -sdb output -nc</code></p>
+</li>
+</ul>
+<h4 id="mandatory-arguments">Mandatory Arguments</h4>
+<ul>
+<li><code>-o, --output_dir</code>: The location for your output folder. Can be anything you want it to. Output folder will be created if it does not exist.</li>
+<li><code>-sdb, --sequence_db</code>: The path to your sequence database. This database should be an uncompressed multi-fasta file. You can create your own custom database
+of plasmid sequences, or append any plasmid sequences you want to the supplied database.</li>
+<li><code>-i, --input_directory</code>: The path to your input directory, which contains your paired-end reads to be analyzed. These reads can be uncompressed, or gzip/bzip2 compressed. It is assumed that forward
+ reads contain 'R1' and reverse reads contain 'R2'. This assumption can be changed with the <code>-fid</code> and <code>-rid</code> options.</li>
+</ul>
+<h4 id="optional-arguments">Optional Arguments</h4>
+<ul>
+<li><code>-t, --threads</code>: Number of CPUs to run your analysis on. By default this is the number of cores on your machine. Every step of the pipeline except for consensus sequence generation parallelizes quite well, so it's recommended that this be left at the default unless you need to run other jobs at the same time.</li>
+<li><code>-k, --keep_tmpfiles</code>: By default, a temporary directory is created in the output folder specified with <code>-o</code> for each sample and deleted once analysis is complete. Temporary files such as quality-trimmed reads and plasmid-only reads are kept here. Specifying this option will keep these temporary files instead of deleting them, in case you want to inspect intermediate files more closely. </li>
+<li><code>-c, --cutoff</code>: The score cutoff for a plasmid to be considered present. Corresponds roughly to the percent identity between the generated plasmid and the reference plasmid. By default, set to 0.98 to only allow plasmids to be found that are quite similar. Lower values will generally return more plasmids, with less specificity. </li>
+<li><code>-r, --report</code>: Name for report that will be created in <code>--output_dir</code>. Defaults to plasmidReport.csv, but can be changed to whatever you like.</li>
+<li><code>-fid, --forward_id</code>: Identifier for forward reads. Defaults to <code>R1</code>, but if your forward reads use a different naming scheme like <code>_1</code>, specify <code>-fid _1</code> to have these recognized as forward reads.</li>
+<li><code>-rid, --reverse_id</code>: Same as <code>-fid</code>, but for reverse reads.</li>
+<li><code>-nc, --no_consensus</code>: Finding consensus sequences takes a fair chunk of time. If you want to skip this step and only identify the plasmids present in your sample, add this option. Adding this option means that any post-analysis of your plasmids that would usually take place (AMR detection, etc) will not occur.</li>
+</ul>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../FAQ/" class="btn btn-neutral float-right" title="FAQ"/>Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../installation/" class="btn btn-neutral" title="Installation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+	  
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+<div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+          <a class="icon icon-github" style="float: left; color: #fcfcfc"> GitHub</a>
+      
+      
+        <span><a href="../installation/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../FAQ/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Plasmid Extractor</title>
+  
+
+  <link rel="shortcut icon" href="./img/favicon.ico">
+
+  
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="./css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="./css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="./css/highlight.css">
+
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "None";
+  </script>
+  
+  <script src="./js/jquery-2.1.1.min.js"></script>
+  <script src="./js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="./js/highlight.pack.js"></script>
+  <script src="./js/theme.js"></script> 
+
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href="." class="icon icon-home"> Plasmid Extractor</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <ul class="current">
+          
+            <li>
+    <li class="toctree-l1 current">
+        <a class="current" href=".">Home</a>
+        
+            <ul>
+            
+                <li class="toctree-l3"><a href="#what-is-plasmid-extractor">What is Plasmid Extractor?</a></li>
+                
+            
+                <li class="toctree-l3"><a href="#how-does-plasmid-extractor-work">How Does Plasmid Extractor Work?</a></li>
+                
+            
+            </ul>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="installation/">Installation</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="usage/">Usage</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="FAQ/">FAQ</a>
+        
+    </li>
+<li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href=".">Plasmid Extractor</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".">Docs</a> &raquo;</li>
+    
+      
+    
+    <li>Home</li>
+    <li class="wy-breadcrumbs-aside">
+      
+        
+          <a href="https://github.com/lowandrew/Plasmid_Assembler" class="icon icon-github"> Edit on GitHub</a>
+        
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="what-is-plasmid-extractor">What is Plasmid Extractor?</h1>
+<p>Plasmid Extractor is a command-line pipeline to search raw reads for plasmids and reconstruct the sequences of any plasmids found. To do this, it uses a fully customizable database of <strong><em>over 9000</em></strong> plasmid
+sequences from RefSeq, enabling plasmid finding with higher sensitivity and specificity than other published tools.</p>
+<h1 id="how-does-plasmid-extractor-work">How Does Plasmid Extractor Work?</h1>
+<p>ADD A PICTURE HERE ONCE PIPELINE WORKFLOWS ARE FINALIZED</p>
+<p>First, PlasmidExtractor looks at the input directory specified by the user to find paired reads and generates a list of samples. For each sample found, the following workflow is followed:</p>
+<ol>
+<li>Quality trim reads using BBDuk. </li>
+<li>Bait out reads from the trimmed read set that have matches to the plasmid database, again using BBDuk.</li>
+<li>Perform a preliminary screen for plasmid content using Mash.</li>
+<li>For each potential plasmid found from the Mash screen, find out exactly how well it's represented by splitting the plasmid reads generated in step 2 and the plasmid sequence itself into 31-mers and finding what proportion of plasmid sequence 31-mers are covered by plasmid read 31-mers.</li>
+<li>Filter out confirmed plasmid hits that have a high degree of similarity to one another, as the database may contain extremely similar plasmids. This step also faciliates the creation of custom databases, 
+as it means that when adding new plasmids to the database it isn't necessary to check if that plasmid is already represented. In each group of similar plasmids, the plasmid hit with the highest score (proportion of plasmid sequence kmers that are covered by read kmers) is taken as a definitive hit.</li>
+<li>A consensus sequence is created for each definitive hit is generated by mapping plasmid reads to reference sequences using BBMap, .</li>
+</ol>
+<p>Once these 6 steps have been followed for each sample, the following post-analysis steps are taken (steps 2, 3 and 4 to be implemented <em>soon</em>):</p>
+<ol>
+<li>Compare total plasmid content across samples using sourmash.</li>
+<li>Identify AMR genes present on plasmid sequences using BLAST and ??? database.</li>
+<li>Identify plasmid incompatibility group for each plasmid using BLAST and ??? database.</li>
+<li>Identify pathogenicity genes present on each plasmid using BLAST and ??? database.</li>
+</ol>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="installation/" class="btn btn-neutral float-right" title="Installation"/>Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+	  
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+<div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+          <a class="icon icon-github" style="float: left; color: #fcfcfc"> GitHub</a>
+      
+      
+      
+        <span style="margin-left: 15px"><a href="installation/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 0.14.0
+Build Date UTC : 2017-11-08 19:09:51.961480
+-->

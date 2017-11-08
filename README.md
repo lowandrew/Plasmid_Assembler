@@ -1,5 +1,7 @@
 # Plasmid Assembler
 
+For more complete instructions, see [documentation](https://lowandrew.github.io/Plasmid_Assembler)
+
 Plasmid Assembler doesn't really assemble plasmids, but instead finds plasmids in raw reads that match
 to known plasmids and (optionally) constructs a consensus sequence for that plasmid.
 

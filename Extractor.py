@@ -102,12 +102,12 @@ class PlasmidExtractor:
         accessoryFunctions.printtime('Searching reads for plasmids...', self.start)
         out, err = mash.screen(os.path.join(self.tmpdir, 'plasmid.msh'),
                                self.forward_plasmid, self.reverse_plasmid,
-                               threads=self.threads, w='',
+                               threads=self.threads, #  w='',
                                i=self.cutoff, output_file=os.path.join(self.tmpdir, 'screen.tab'))
         with open(self.logfile, 'a+') as logfile:
             logfile.write(out + '\n')
             logfile.write(err + '\n')
-        results = mash.read_mash_screen(os.path.join(self.tmpdir,'screen.tab'))
+        results = mash.read_mash_screen(os.path.join(self.tmpdir, 'screen.tab'))
         # Get a list of potential plasmids from mash screen output.
         plasmids_present = list()
         for result in results:
@@ -173,8 +173,8 @@ class PlasmidExtractor:
         for query_plasmid in self.potential_plasmids:
             mash_results.append(list())
             for reference_plasmid in self.potential_plasmids:
-                mash.dist(query_plasmid, reference_plasmid, output_file='distances.tab')
-                x = mash.read_mash_output('distances.tab')
+                mash.dist(query_plasmid, reference_plasmid, output_file=os.path.join(self.tmpdir, 'distances.tab'))
+                x = mash.read_mash_output(os.path.join(self.tmpdir, 'distances.tab'))
                 mash_results[i].append(x)
             i += 1
         # Now have a list of all mash results, so pairwise distances are known. Now need to transform the data
@@ -192,7 +192,7 @@ class PlasmidExtractor:
         z = cluster.hierarchy.linkage(matrix, method='average')
         # Get a list of clusters at our cutoff. Testing seems to show that the cutoff at 0.1 works well.
         # Will need to do a somewhat more extensive set of testing in the not too distant future.
-        clustering = cluster.hierarchy.fcluster(z, 0.1, criterion='distance')
+        clustering = cluster.hierarchy.fcluster(z, 0.05, criterion='distance')
         num_clusters = max(clustering)
         clusters = list()
         # Create our clusters.

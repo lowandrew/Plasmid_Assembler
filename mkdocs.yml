@@ -1,0 +1,9 @@
+site_name: Plasmid Extractor
+theme: readthedocs
+repo_url: "https://github.com/lowandrew/Plasmid_Assembler"
+
+pages:
+        - Home: index.md
+        - Installation: installation.md
+        - Usage: usage.md
+        - FAQ: FAQ.md

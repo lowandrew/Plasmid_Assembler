@@ -10,11 +10,15 @@ As PlasmidExtractor has a fair number of dependencies, the easiest way to get it
 
 Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:
 
-`docker pull /url/for/PlasmidExtractor/`.
+`docker pull olcbioinformatics/cowpig`.
 
 The pipeline can then be run with: 
 
-`command you'll enter once I actually get around to making a docker image`.
+`docker run -i -v /path/to/your/sequences/:/sequences olcbioinformatics/cowpig python3 /home/Extractor.py -i /sequences -o /sequences/output -sdb /home/new_database.fasta`
+
+Where `/path/to/your/sequences/` is the folder with the FASTQ files you want analyzed. A folder called output will be created in your input folder that will contain your results.
+
+Currently, the docker image is unable to create the output visualizations - this will be addressed in the future.
 
 ### Installation From Source
 
@@ -40,3 +44,5 @@ You will also need to install the python packages that PlasmidExtractor needs to
 `pip3 install -r requirements.txt`
 
 If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you should get a _ModuleNotFoundError_ for the depedency that has not been able to run properly.
+
+For visualization of sourmash results, you may need to install the python3-tk library. On a debian-based system, you can do this with: `apt-get install python3-tk`

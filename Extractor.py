@@ -19,6 +19,7 @@ Workflow:
 1) Look through a folder to find paired fastq reads (and unpaired? TBD).
 2) For each pair of reads, do quality trimming with bbduk.
 3) Extract the plasmid reads from each sample using bbduk.
+3.5) Do a preliminary screen with Mash to find plasmid presence.
 4) Kmerize the reads with kmc and then find overlapping kmers with kmerized plasmids to determine which plasmids are
 present.
 5) Filter out plasmids that are essentially duplicates, taking the ones that are the best match out of the set of
@@ -36,8 +37,6 @@ Outputs:
 - Fasta files for each plasmid found.
 - Some sort of plasmid content similarity matrix.
 
-To do this:
-Have object for each sample that tracks plasmids present, scores, amr genes present, and all that good stuff.
 """
 
 
@@ -102,7 +101,7 @@ class PlasmidExtractor:
         accessoryFunctions.printtime('Searching reads for plasmids...', self.start)
         out, err = mash.screen(os.path.join(self.tmpdir, 'plasmid.msh'),
                                self.forward_plasmid, self.reverse_plasmid,
-                               threads=self.threads, #  w='',
+                               threads=self.threads,
                                i=self.cutoff, output_file=os.path.join(self.tmpdir, 'screen.tab'))
         with open(self.logfile, 'a+') as logfile:
             logfile.write(out + '\n')
@@ -118,7 +117,6 @@ class PlasmidExtractor:
             if record.id in plasmids_present:
                 SeqIO.write(record, os.path.join(self.tmpdir, record.id), 'fasta')
                 kmc.kmc(os.path.join(self.tmpdir, record.id), os.path.join(self.tmpdir, record.id), fm='')
-        # print('Searching for potential plasmids...')
         self.find_plasmids()
         # If no potential plasmids were found, we can skip over the rest of this.
         if len(self.potential_plasmids) > 0:
@@ -398,7 +396,7 @@ if __name__ == '__main__':
                         action='store_true',
                         help='When specified, will keep the created tmp directory instead of deleting it.')
     parser.add_argument('-c', '--cutoff',
-                        default=0.98,
+                        default=0.99,
                         type=float,
                         help='Similarity cutoff for finding plasmids.')
     parser.add_argument('-r', '--report',

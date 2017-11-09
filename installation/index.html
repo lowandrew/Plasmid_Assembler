@@ -130,9 +130,11 @@
 <h3 id="installation-using-docker">Installation Using Docker</h3>
 <p>As PlasmidExtractor has a fair number of dependencies, the easiest way to get it installed and working on your machine is using docker. Instructions on docker installation can be found <a href="https://docs.docker.com/engine/installation/">here</a>.</p>
 <p>Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:</p>
-<p><code>docker pull /url/for/PlasmidExtractor/</code>.</p>
+<p><code>docker pull olcbioinformatics/cowpig</code>.</p>
 <p>The pipeline can then be run with: </p>
-<p><code>command you'll enter once I actually get around to making a docker image</code>.</p>
+<p><code>docker run -i -v /path/to/your/sequences/:/sequences olcbioinformatics/cowpig python3 /home/Extractor.py -i /sequences -o /sequences/output -sdb /home/new_database.fasta</code></p>
+<p>Where <code>/path/to/your/sequences/</code> is the folder with the FASTQ files you want analyzed. A folder called output will be created in your input folder that will contain your results.</p>
+<p>Currently, the docker image is unable to create the output visualizations - this will be addressed in the future.</p>
 <h3 id="installation-from-source">Installation From Source</h3>
 <p>To install from source, you will first need to clone the GitHub repository. Open a terminal, navigate to where you want to download PlasmidExtractor, and type:</p>
 <p><code>git clone https://github.com/lowandrew/Plasmid_Assembler.git</code></p>
@@ -151,6 +153,7 @@
 <p>You will also need to install the python packages that PlasmidExtractor needs to run. The packages need can be found in <code>requirements.txt</code>. To install all of them in one go, type:</p>
 <p><code>pip3 install -r requirements.txt</code></p>
 <p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you should get a <em>ModuleNotFoundError</em> for the depedency that has not been able to run properly.</p>
+<p>For visualization of sourmash results, you may need to install the python3-tk library. On a debian-based system, you can do this with: <code>apt-get install python3-tk</code></p>
               
             </div>
           </div>

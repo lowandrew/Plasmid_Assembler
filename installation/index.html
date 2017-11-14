@@ -66,7 +66,7 @@
                 
                     <li><a class="toctree-l4" href="#installation-using-docker">Installation Using Docker</a></li>
                 
-                    <li><a class="toctree-l4" href="#installation-from-source">Installation From Source</a></li>
+                    <li><a class="toctree-l4" href="#installing-using-pip">Installing Using Pip</a></li>
                 
             
             </ul>
@@ -127,7 +127,7 @@
                 <h1 id="system-requirements">System Requirements</h1>
 <p>PlasmidExtractor has been developed and tested on Linux-based systems (more specifically Ubuntu and Mint). Any Linux/Unix-based system (including MacOS) should be able to run the pipeline, while users of Windows-based systems will have to use Docker in order to have the pipeline run.</p>
 <p>In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline using up to 20 GB due to the size of the database that PlasmidExtractor uses (a low-memory version of the database is on the to-do list). 32 GB or RAM is recommended, though machines with 24 GB may work.</p>
-<h3 id="installation-using-docker">Installation Using Docker</h3>
+<h2 id="installation-using-docker">Installation Using Docker</h2>
 <p>As PlasmidExtractor has a fair number of dependencies, the easiest way to get it installed and working on your machine is using docker. Instructions on docker installation can be found <a href="https://docs.docker.com/engine/installation/">here</a>.</p>
 <p>Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:</p>
 <p><code>docker pull olcbioinformatics/cowpig</code>.</p>
@@ -135,9 +135,17 @@
 <p><code>docker run -i -v /path/to/your/sequences/:/sequences olcbioinformatics/cowpig python3 /home/Extractor.py -i /sequences -o /sequences/output -sdb /home/new_database.fasta</code></p>
 <p>Where <code>/path/to/your/sequences/</code> is the folder with the FASTQ files you want analyzed. A folder called output will be created in your input folder that will contain your results.</p>
 <p>Currently, the docker image is unable to create the output visualizations - this will be addressed in the future.</p>
-<h3 id="installation-from-source">Installation From Source</h3>
-<p>To install from source, you will first need to clone the GitHub repository. Open a terminal, navigate to where you want to download PlasmidExtractor, and type:</p>
-<p><code>git clone https://github.com/lowandrew/Plasmid_Assembler.git</code></p>
+<h2 id="installing-using-pip">Installing Using Pip</h2>
+<h4 id="executable">Executable</h4>
+<p>PlasmidExtractor can also be installed using pip. Use of a virtual environment for PlasmidExtractor is highly recommended. To create a virtualenv:</p>
+<ul>
+<li>Create an empty directory (i.e. <code>mkdir ~/Virtual_Environments/PlasmidExtractor</code>)</li>
+<li>Virtualenv that directory (<code>virtualenv -p /usr/bin/python3 ~/Virtual_Environments/PlasmidExtractor</code>)</li>
+<li>Activate the virtualenv (<code>source ~/Virtual_Environments/PlasmidExtractor/bin/activate</code>)</li>
+<li>Install PlasmidExtractor (<code>pip install plasmidextractor</code>)</li>
+</ul>
+<p>With this done, you'll need to make sure that any necessary dependencies are installed.</p>
+<h4 id="dependencies">Dependencies</h4>
 <p>With that done, you will need to make sure that you have all of the depedencies for PlasmidExtractor installed and present on your $PATH. The dependencies for PlasmidExtractor are:</p>
 <ul>
 <li><a href="http://www.htslib.org/download/">samtools &gt;= 1.6</a></li>
@@ -150,10 +158,14 @@
 <li><a href="https://www.python.org/downloads/">python &gt;= 3.5</a></li>
 </ul>
 <p>For instructions on how to add programs to your $PATH, click <a href="https://askubuntu.com/questions/60218/how-to-add-a-directory-to-the-path">here</a>.</p>
-<p>You will also need to install the python packages that PlasmidExtractor needs to run. The packages need can be found in <code>requirements.txt</code>. To install all of them in one go, type:</p>
-<p><code>pip3 install -r requirements.txt</code></p>
 <p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you should get a <em>ModuleNotFoundError</em> for the depedency that has not been able to run properly.</p>
 <p>For visualization of sourmash results, you may need to install the python3-tk library. On a debian-based system, you can do this with: <code>apt-get install python3-tk</code></p>
+<h4 id="databases">Databases</h4>
+<p>Once you have the executable and dependencies installed, you'll just need to download the databases that ConFindr depends on.</p>
+<p>To do this, you'll need to install Git LFS (instructions <a href="https://git-lfs.github.com/">here</a>). </p>
+<p>Then, clone the PlasmidExtractor Git repository (<code>git clone https://github.com/lowandrew/ConFindr.git</code>). The <code>databases</code> folder and <code>plasmid_database.fasta</code> are the important fiels - you'll need them for calling PlasmidExtractor, as seen in the <code>Usage</code> section.</p>
+<p>With the repository cloned, you should also install the necessary python packages in your virtual environment. The necessary packages are in the <code>requirements.txt</code> file in the cloned repository.
+Use <code>pip install -r requirements.txt</code> in order to install these.</p>
               
             </div>
           </div>

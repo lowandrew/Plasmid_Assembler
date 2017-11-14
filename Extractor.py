@@ -1,17 +1,18 @@
 #!/usr/bin/env python
-import shutil
 import multiprocessing
-import argparse
-import glob
-import os
 import subprocess
+import argparse
+import shutil
 import time
+import glob
+import csv
+import os
 from Bio import SeqIO
-from scipy import cluster
-from biotools import bbtools
 from biotools import kmc
-from biotools import accessoryfunctions
+from scipy import cluster
 from biotools import mash
+from biotools import bbtools
+from biotools import accessoryfunctions
 from accessoryFunctions import accessoryFunctions
 
 """
@@ -332,11 +333,13 @@ def generate_consensus(forward_reads, reverse_reads, reference_fasta, output_fas
 
 
 class PlasmidAnalyzer:
-    def __init__(self, args):
+    def __init__(self, args, start):
         self.sourmash_matrix = os.path.join(args.output_dir, 'plasmid')
         self.output_dir = args.output_dir
         self.keep_tmpfiles = args.keep_tmpfiles
         self.logfile = self.output_dir + '/sourmash.log'
+        self.databases = args.databases
+        self.start = start
 
     def sourmash(self):
         concatenated_fastas = glob.glob(self.output_dir + '/*/plasmids_concatenated.fasta')
@@ -367,8 +370,124 @@ class PlasmidAnalyzer:
             except:
                 pass
 
+    def amr_detection(self):
+        accessoryFunctions.printtime('Finding resistance genes...', self.start, '\033[1;35m')
+        # Get dictionary of what genes correspond to what resistances from the notes.txt in the resistance_db folder
+        resistance_dict = dict()
+        with open(os.path.join(self.output_dir, 'resistance.csv'), 'w') as f:
+            f.write('Sample,Plasmid,Gene,Resistance,Coverage,PercentIdentity\n')
+        with open(os.path.join(self.databases, 'resistance_db/notes.txt')) as infile:
+            lines = infile.readlines()
+        for line in lines:
+            x = line.split(':')
+            if '#' not in line:
+                resistance_dict[x[0]] = x[1]
+        # Find a list of all your samples.
+        samples = glob.glob(os.path.join(self.output_dir, '*/'))
+        for sample in samples:
+            # Run GeneSeekr using CGE's resistance database.
+            cmd = 'python GeneSeekr.py -t {databases}/resistance_db -s {sequence_folder} ' \
+                  '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
+            with open(os.devnull, 'w') as null:
+                subprocess.call(cmd, shell=True, stdout=null, stderr=null)
+            try:  # Rename the output from the GeneSeekr default
+                os.rename('{sequence_folder}/virulence.csv'.format(sequence_folder=sample),
+                          '{sequence_folder}/resistance.csv'.format(sequence_folder=sample))
+            except FileNotFoundError:
+                pass
+            try:  # Write a summary report for all samples to be placed in the output folder.
+                with open('{sequence_folder}/resistance.csv'.format(sequence_folder=sample)) as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        if row['Gene'] is not None:
+                            with open(os.path.join(self.output_dir, 'resistance.csv'), 'a+') as f:
+                                try:
+                                    resistance = resistance_dict[row['Gene']]
+                                except KeyError:
+                                    resistance = 'Unknown'
+                                f.write('{sample},{plasmid},{gene},{resistance},{coverage},'
+                                        '{percent}\n'.format(sample=os.path.split(sample)[-2],
+                                                             plasmid=row['Contig'],
+                                                             gene=row['Gene'],
+                                                             resistance=resistance,
+                                                             coverage=row['PercentCovered'],
+                                                             percent=row['PercentIdentity']))
+                to_remove = glob.glob(os.path.join(sample, '*csv'))  # Remove temporary csv files created by GeneSeekr.
+                for item in to_remove:
+                    if 'resistance' not in item:
+                        os.remove(item)
+            except FileNotFoundError:
+                pass
+
+    def virulence_detection(self):
+        accessoryFunctions.printtime('Finding virulence genes...', self.start, '\033[1;35m')  # Probably change this away from purple.
+        with open(os.path.join(self.output_dir, 'virulence.csv'), 'w') as f:
+            f.write('Sample,Plasmid,Gene,Coverage,PercentIdentity\n')
+        samples = glob.glob(os.path.join(self.output_dir, '*/'))  # Find our samples.
+        for sample in samples:
+            # Run GeneSeekr on CGE's virulence DB.
+            cmd = 'python GeneSeekr.py -t {databases}/virulence_db -s {sequence_folder} ' \
+                  '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
+            with open(os.devnull, 'w') as null:
+                subprocess.call(cmd, shell=True, stdout=null, stderr=null)
+            try:
+                # Write results to the summary for all samples
+                with open('{sequence_folder}/virulence.csv'.format(sequence_folder=sample)) as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        if row['Gene'] is not None:
+                            with open(os.path.join(self.output_dir, 'virulence.csv'), 'a+') as f:
+                                f.write('{sample},{plasmid},{gene},{coverage},{percent}\n'.format(sample=os.path.split(sample)[-2],  # Clean this up, displays too much.
+                                                                                                  plasmid=row['Contig'],
+                                                                                                  gene=row['Gene'],
+                                                                                                  coverage=row['PercentCovered'],
+                                                                                                  percent=row['PercentIdentity']))
+                to_remove = glob.glob(os.path.join(sample, '*csv'))  # Get rid of GeneSeekr files.
+                for item in to_remove:
+                    if 'resistance' not in item and 'virulence' not in item and 'incompatibility' not in item:
+                        os.remove(item)
+            except FileNotFoundError:
+                pass
+
+    def inc_detection(self):
+        accessoryFunctions.printtime('Finding incompatibility groups...', self.start, '\033[1;35m')
+        # Get dictionary of what genes correspond to what resistances from the notes.txt in the resistance_db folder
+        with open(os.path.join(self.output_dir, 'incompatibility.csv'), 'w') as f:
+            f.write('Sample,Plasmid,Gene,Coverage,PercentIdentity\n')
+        samples = glob.glob(os.path.join(self.output_dir, '*/'))
+        for sample in samples:
+            cmd = 'python GeneSeekr.py -t {databases}/incompatibility -s {sequence_folder} ' \
+                  '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
+            with open(os.devnull, 'w') as null:
+                subprocess.call(cmd, shell=True, stdout=null, stderr=null)
+            try:
+                os.rename('{sequence_folder}/virulence.csv'.format(sequence_folder=sample),
+                          '{sequence_folder}/incompatibility.csv'.format(sequence_folder=sample))
+            except FileNotFoundError:
+                pass
+            try:
+                with open('{sequence_folder}/incompatibility.csv'.format(sequence_folder=sample)) as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        if row['Gene'] is not None:
+                            with open(os.path.join(self.output_dir, 'incompatibility.csv'), 'a+') as f:
+                                f.write('{sample},{plasmid},{gene},{coverage},{percent}\n'.format(sample=os.path.split(sample)[-2],  # Clean this up, displays too much.
+                                                                                                  plasmid=row['Contig'],
+                                                                                                  gene=row['Gene'],
+                                                                                                  coverage=row['PercentCovered'],
+                                                                                                  percent=row['PercentIdentity']))
+                to_remove = glob.glob(os.path.join(sample, '*csv'))
+                for item in to_remove:
+                    if 'resistance' not in item and 'incompatibility' not in item:
+                        os.remove(item)
+            except FileNotFoundError:
+                pass
+
     def main(self):
         self.sourmash()
+        self.amr_detection()
+        self.inc_detection()
+        self.virulence_detection()
 
 
 if __name__ == '__main__':
@@ -416,6 +535,10 @@ if __name__ == '__main__':
                         action='store_true',
                         help='When enabled, consenus sequences will not be generated, which saves a fair bit of time.'
                              ' Report of plasmid presence will still be found in plasmidReport.csv')
+    parser.add_argument('-d', '--databases',
+                        default='databases',
+                        type=str,
+                        help='Path to resistance/virulence/plasmid typing databases.')
     args = parser.parse_args()
     # Get a logfile set up.
     if not os.path.isdir(args.output_dir):
@@ -430,5 +553,5 @@ if __name__ == '__main__':
         accessoryFunctions.printtime('Finished plasmid extraction for {}...'.format(pair[0]), start)
     # Now do some post-analysis. Sourmash for nice visualization, AMR gene finding, and maybe more?...
     if not args.no_consensus:
-        analyzer = PlasmidAnalyzer(args)
+        analyzer = PlasmidAnalyzer(args, start)
         analyzer.main()

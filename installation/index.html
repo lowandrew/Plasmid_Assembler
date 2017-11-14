@@ -142,7 +142,7 @@
 <li>Create an empty directory (i.e. <code>mkdir ~/Virtual_Environments/PlasmidExtractor</code>)</li>
 <li>Virtualenv that directory (<code>virtualenv -p /usr/bin/python3 ~/Virtual_Environments/PlasmidExtractor</code>)</li>
 <li>Activate the virtualenv (<code>source ~/Virtual_Environments/PlasmidExtractor/bin/activate</code>)</li>
-<li>Install PlasmidExtractor (<code>pip install plasmidextractor</code>)</li>
+<li>Install PlasmidExtractor - this should also install any python packages necessary for PlasmidExtractor to run. (<code>pip install plasmidextractor</code>)</li>
 </ul>
 <p>With this done, you'll need to make sure that any necessary dependencies are installed.</p>
 <h4 id="dependencies">Dependencies</h4>
@@ -164,8 +164,6 @@
 <p>Once you have the executable and dependencies installed, you'll just need to download the databases that ConFindr depends on.</p>
 <p>To do this, you'll need to install Git LFS (instructions <a href="https://git-lfs.github.com/">here</a>). </p>
 <p>Then, clone the PlasmidExtractor Git repository (<code>git clone https://github.com/lowandrew/ConFindr.git</code>). The <code>databases</code> folder and <code>plasmid_database.fasta</code> are the important fiels - you'll need them for calling PlasmidExtractor, as seen in the <code>Usage</code> section.</p>
-<p>With the repository cloned, you should also install the necessary python packages in your virtual environment. The necessary packages are in the <code>requirements.txt</code> file in the cloned repository.
-Use <code>pip install -r requirements.txt</code> in order to install these.</p>
               
             </div>
           </div>

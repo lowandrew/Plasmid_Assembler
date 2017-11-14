@@ -1,13 +1,14 @@
-# Quickstart
+# Usage With a Pip Install
 
 The basic usage of Plasmid Extractor is fairly simple. As input, you will need to provide:
 
 - a folder containing paired-end reads that you think may have plasmids in them. It is assumed that forward reads contain 'R1' in their name and reverse reads contain 'R2' - see detailed usage for information on how to change this if your reads are named differently. 
 - a plasmid database (included with the PlasmidExtractor distribution) 
+- resistance/virulence/incompatibility databases (also included with PlasmidExtractor distribution)
 - the path to a folder where you would like your output to be place (this folder will be created if it does not exist).
 
 For example, in order to analyze the reads in the directory `/home/user/reads` and place the output into `output` using the default plasmid database, the command would be:
-`python Extractor.py -i /home/user/reads -o output -sdb output`
+`Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases`
 
 Within the output directory, you will find the following:
 
@@ -15,19 +16,25 @@ Within the output directory, you will find the following:
 - a folder for each sample, which contains a FASTA file for each plasmid found, a FASTA file with the plasmids concatenated, and the input reads with any plasmid reads discarded
 - if there was more than one sample, an image file showing a dendrogram of similarity of the total plasmid content of each sample, as well as a heatmap showing similarity
 - a log file for each sample showing the output from each step of the pipeline 
+- CSV files describing virulence, AMR, and incompatibility genes found for each sample.
 
-# Detailed Usage
+
+# Usage with Docker 
+
+Coming soon...
+
+# A Few Usage Examples
 
 The input parameters of Plasmid Extractor can be customized to your liking. Here are a few examples of different things that could be done:
 
 - Set identity cutoff to 0.8, to increase sensitivity at the cost of specificity.
-`python Extractor.py -i /home/user/reads -o output -sdb output -c 0.8`
+`Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -c 0.8`
 
 - Keep around temporary files created during execution to take a look at afterwards.
-`python Extractor.py -i /home/user/reads -o output -sdb output -k`
+`Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -k`
 
 - Don't generate sequences for plasmids found, for speedy analysis.
-`python Extractor.py -i /home/user/reads -o output -sdb output -nc`
+`Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -nc`
 
 
 #### Mandatory Arguments
@@ -37,6 +44,7 @@ The input parameters of Plasmid Extractor can be customized to your liking. Here
 of plasmid sequences, or append any plasmid sequences you want to the supplied database.
 - `-i, --input_directory`: The path to your input directory, which contains your paired-end reads to be analyzed. These reads can be uncompressed, or gzip/bzip2 compressed. It is assumed that forward
  reads contain 'R1' and reverse reads contain 'R2'. This assumption can be changed with the `-fid` and `-rid` options.
+- `-d, --databases`: The path to databases for virulence/AMR/incompatibility gene detection.
 
 #### Optional Arguments
 

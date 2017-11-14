@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 from Bio.Application import ApplicationError
 import time
 import os

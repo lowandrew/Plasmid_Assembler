@@ -15,8 +15,7 @@ khmer==2.1.1
 MarkupSafe==1.0
 matplotlib==2.1.0
 numpy==1.13.3
-OLCTools==0.3.4
-pkg-resources==0.0.0
+OLCTools==0.3.6
 Pygments==2.2.0
 pyparsing==2.2.0
 python-dateutil==2.6.1

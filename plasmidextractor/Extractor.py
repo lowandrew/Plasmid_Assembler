@@ -386,7 +386,7 @@ class PlasmidAnalyzer:
         samples = glob.glob(os.path.join(self.output_dir, '*/'))
         for sample in samples:
             # Run GeneSeekr using CGE's resistance database.
-            cmd = 'python GeneSeekr.py -t {databases}/resistance_db -s {sequence_folder} ' \
+            cmd = 'GeneSeekr.py -t {databases}/resistance_db -s {sequence_folder} ' \
                   '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
             with open(os.devnull, 'w') as null:
                 subprocess.call(cmd, shell=True, stdout=null, stderr=null)
@@ -426,7 +426,7 @@ class PlasmidAnalyzer:
         samples = glob.glob(os.path.join(self.output_dir, '*/'))  # Find our samples.
         for sample in samples:
             # Run GeneSeekr on CGE's virulence DB.
-            cmd = 'python GeneSeekr.py -t {databases}/virulence_db -s {sequence_folder} ' \
+            cmd = 'GeneSeekr.py -t {databases}/virulence_db -s {sequence_folder} ' \
                   '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
             with open(os.devnull, 'w') as null:
                 subprocess.call(cmd, shell=True, stdout=null, stderr=null)
@@ -456,7 +456,7 @@ class PlasmidAnalyzer:
             f.write('Sample,Plasmid,Gene,Coverage,PercentIdentity\n')
         samples = glob.glob(os.path.join(self.output_dir, '*/'))
         for sample in samples:
-            cmd = 'python GeneSeekr.py -t {databases}/incompatibility -s {sequence_folder} ' \
+            cmd = 'GeneSeekr.py -t {databases}/incompatibility -s {sequence_folder} ' \
                   '-r {sequence_folder} -v'.format(sequence_folder=sample, databases=self.databases)
             with open(os.devnull, 'w') as null:
                 subprocess.call(cmd, shell=True, stdout=null, stderr=null)
@@ -536,7 +536,7 @@ if __name__ == '__main__':
                         help='When enabled, consenus sequences will not be generated, which saves a fair bit of time.'
                              ' Report of plasmid presence will still be found in plasmidReport.csv')
     parser.add_argument('-d', '--databases',
-                        default='databases',
+                        required=True,
                         type=str,
                         help='Path to resistance/virulence/plasmid typing databases.')
     args = parser.parse_args()

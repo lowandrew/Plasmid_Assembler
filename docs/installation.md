@@ -29,7 +29,7 @@ PlasmidExtractor can also be installed using pip. Use of a virtual environment f
 - Create an empty directory (i.e. `mkdir ~/Virtual_Environments/PlasmidExtractor`)
 - Virtualenv that directory (`virtualenv -p /usr/bin/python3 ~/Virtual_Environments/PlasmidExtractor`)
 - Activate the virtualenv (`source ~/Virtual_Environments/PlasmidExtractor/bin/activate`)
-- Install PlasmidExtractor (`pip install plasmidextractor`)
+- Install PlasmidExtractor - this should also install any python packages necessary for PlasmidExtractor to run. (`pip install plasmidextractor`)
 
 With this done, you'll need to make sure that any necessary dependencies are installed.
 
@@ -59,5 +59,3 @@ To do this, you'll need to install Git LFS (instructions [here](https://git-lfs.
 
 Then, clone the PlasmidExtractor Git repository (`git clone https://github.com/lowandrew/ConFindr.git`). The `databases` folder and `plasmid_database.fasta` are the important fiels - you'll need them for calling PlasmidExtractor, as seen in the `Usage` section.
 
-With the repository cloned, you should also install the necessary python packages in your virtual environment. The necessary packages are in the `requirements.txt` file in the cloned repository.
-Use `pip install -r requirements.txt` in order to install these.

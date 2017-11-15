@@ -67,6 +67,7 @@ class PlasmidExtractor:
         self.report = os.path.join(args.output_dir, args.report)
         self.consensus_plasmids = list()
         self.no_consensus = args.no_consensus
+        self.low_memory = args.low_memory
 
     def main(self):
         if not os.path.isdir(self.tmpdir):
@@ -84,9 +85,14 @@ class PlasmidExtractor:
         # Extract plasmid reads.
         accessoryFunctions.printtime('Baiting out plasmid reads for {sample}...'.format(sample=self.forward_reads),
                                      self.start)
-        out, err = bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
-                                      forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
-                                      reverse_out=self.reverse_plasmid, overwrite='t')
+        if self.low_memory:
+            out, err = bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
+                                          forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
+                                          reverse_out=self.reverse_plasmid, overwrite='t', rskip='6')
+        else:
+            out, err = bbtools.bbduk_bait(reference=self.sequence_db, forward_in=self.forward_trimmed,
+                                          forward_out=self.forward_plasmid, reverse_in=self.reverse_trimmed,
+                                          reverse_out=self.reverse_plasmid, overwrite='t')
         with open(self.logfile, 'a+') as logfile:
             logfile.write(out + '\n')
             logfile.write(err + '\n')
@@ -539,6 +545,11 @@ if __name__ == '__main__':
                         required=True,
                         type=str,
                         help='Path to resistance/virulence/plasmid typing databases.')
+    parser.add_argument('-l', '--low_memory',
+                        default=False,
+                        action='store_true',
+                        help='When enabled, will use substantially less memory (~ 7GB instead of ~24GB). May come at'
+                             ' the cost of some sensitivity.')
     args = parser.parse_args()
     # Get a logfile set up.
     if not os.path.isdir(args.output_dir):

@@ -126,7 +126,7 @@
               
                 <h1 id="system-requirements">System Requirements</h1>
 <p>PlasmidExtractor has been developed and tested on Linux-based systems (more specifically Ubuntu and Mint). Any Linux/Unix-based system (including MacOS) should be able to run the pipeline, while users of Windows-based systems will have to use Docker in order to have the pipeline run.</p>
-<p>In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline using up to 20 GB due to the size of the database that PlasmidExtractor uses (a low-memory version of the database is on the to-do list). 32 GB or RAM is recommended, though machines with 24 GB may work.</p>
+<p>In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline more than 20 GB due to the size of the database that PlasmidExtractor uses. 32 GB or RAM is recommended. If your machine does not meet these requirements, PlasmidExtractor can be run in a low-memory mode, where memory usage should peak at ~7GB, enabling the pipeline to run on a much wider range of machines.</p>
 <h2 id="installation-using-docker">Installation Using Docker</h2>
 <p>As PlasmidExtractor has a fair number of dependencies, the easiest way to get it installed and working on your machine is using docker. Instructions on docker installation can be found <a href="https://docs.docker.com/engine/installation/">here</a>.</p>
 <p>Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:</p>
@@ -162,8 +162,10 @@
 <p>For visualization of sourmash results, you may need to install the python3-tk library. On a debian-based system, you can do this with: <code>apt-get install python3-tk</code></p>
 <h4 id="databases">Databases</h4>
 <p>Once you have the executable and dependencies installed, you'll just need to download the databases that ConFindr depends on.</p>
-<p>To do this, you'll need to install Git LFS (instructions <a href="https://git-lfs.github.com/">here</a>). </p>
-<p>Then, clone the PlasmidExtractor Git repository (<code>git clone https://github.com/lowandrew/ConFindr.git</code>). The <code>databases</code> folder and <code>plasmid_database.fasta</code> are the important fiels - you'll need them for calling PlasmidExtractor, as seen in the <code>Usage</code> section.</p>
+<p>The databases necessary for PlasmidExtractor are hosted on FigShare.</p>
+<p>To download them, use the following command in the folder you want to download the databases to:</p>
+<p><code>wget https://ndownloader.figshare.com/files/9827323  &amp;&amp; tar xf 9827323</code></p>
+<p>This will create a folder in you current working directory called databases.</p>
               
             </div>
           </div>

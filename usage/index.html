@@ -134,12 +134,12 @@
 <p>The basic usage of Plasmid Extractor is fairly simple. As input, you will need to provide:</p>
 <ul>
 <li>a folder containing paired-end reads that you think may have plasmids in them. It is assumed that forward reads contain 'R1' in their name and reverse reads contain 'R2' - see detailed usage for information on how to change this if your reads are named differently. </li>
-<li>a plasmid database (included with the PlasmidExtractor distribution) </li>
+<li>a plasmid database (included with the PlasmidExtractor distribution - see <a href="../installation/">Installation</a>) </li>
 <li>resistance/virulence/incompatibility databases (also included with PlasmidExtractor distribution)</li>
 <li>the path to a folder where you would like your output to be place (this folder will be created if it does not exist).</li>
 </ul>
 <p>For example, in order to analyze the reads in the directory <code>/home/user/reads</code> and place the output into <code>output</code> using the default plasmid database, the command would be:
-<code>Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases</code></p>
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases</code></p>
 <p>Within the output directory, you will find the following:</p>
 <ul>
 <li>a CSV file called plasmidReport.csv, which shows the plasmids found for each sample, along with a score that shows (approximately) the percent identity to a reference plasmid</li>
@@ -155,15 +155,23 @@
 <ul>
 <li>
 <p>Set identity cutoff to 0.8, to increase sensitivity at the cost of specificity.
-<code>Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -c 0.8</code></p>
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -c 0.8</code></p>
 </li>
 <li>
 <p>Keep around temporary files created during execution to take a look at afterwards.
-<code>Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -k</code></p>
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -k</code></p>
 </li>
 <li>
 <p>Don't generate sequences for plasmids found, for speedy analysis.
-<code>Extractor.py -i /home/user/reads -o output -sdb plasmid_database.fasta -d databases -nc</code></p>
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -nc</code></p>
+</li>
+<li>
+<p>Run in low memory mode. 
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -l</code></p>
+</li>
+<li>
+<p>Combine low memory mode with no consensus generation for maximum speed.
+<code>Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -nc -l</code></p>
 </li>
 </ul>
 <h4 id="mandatory-arguments">Mandatory Arguments</h4>
@@ -184,6 +192,7 @@ of plasmid sequences, or append any plasmid sequences you want to the supplied d
 <li><code>-fid, --forward_id</code>: Identifier for forward reads. Defaults to <code>R1</code>, but if your forward reads use a different naming scheme like <code>_1</code>, specify <code>-fid _1</code> to have these recognized as forward reads.</li>
 <li><code>-rid, --reverse_id</code>: Same as <code>-fid</code>, but for reverse reads.</li>
 <li><code>-nc, --no_consensus</code>: Finding consensus sequences takes a fair chunk of time. If you want to skip this step and only identify the plasmids present in your sample, add this option. Adding this option means that any post-analysis of your plasmids that would usually take place (AMR detection, etc) will not occur.</li>
+<li><code>-l, --low_memory</code>: Enabling this flag will make the PlasmidExtractor pipeline use substantially less memory (~7GB of RAM at peak usage instead of &gt;20GB). May cause slight drops in sensitivity, but nothing too drastic. </li>
 </ul>
               
             </div>

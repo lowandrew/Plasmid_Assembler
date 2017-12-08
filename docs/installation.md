@@ -2,7 +2,7 @@
 
 PlasmidExtractor has been developed and tested on Linux-based systems (more specifically Ubuntu and Mint). Any Linux/Unix-based system (including MacOS) should be able to run the pipeline, while users of Windows-based systems will have to use Docker in order to have the pipeline run.
 
-In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline using up to 20 GB due to the size of the database that PlasmidExtractor uses (a low-memory version of the database is on the to-do list). 32 GB or RAM is recommended, though machines with 24 GB may work.
+In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline more than 20 GB due to the size of the database that PlasmidExtractor uses. 32 GB or RAM is recommended. If your machine does not meet these requirements, PlasmidExtractor can be run in a low-memory mode, where memory usage should peak at ~7GB, enabling the pipeline to run on a much wider range of machines.
 
 ## Installation Using Docker
 
@@ -55,7 +55,11 @@ For visualization of sourmash results, you may need to install the python3-tk li
 
 Once you have the executable and dependencies installed, you'll just need to download the databases that ConFindr depends on.
 
-To do this, you'll need to install Git LFS (instructions [here](https://git-lfs.github.com/)). 
+The databases necessary for PlasmidExtractor are hosted on FigShare.
 
-Then, clone the PlasmidExtractor Git repository (`git clone https://github.com/lowandrew/ConFindr.git`). The `databases` folder and `plasmid_database.fasta` are the important fiels - you'll need them for calling PlasmidExtractor, as seen in the `Usage` section.
+To download them, use the following command in the folder you want to download the databases to:
+
+`wget https://ndownloader.figshare.com/files/9827323  && tar xf 9827323`
+
+This will create a folder in you current working directory called databases.
 

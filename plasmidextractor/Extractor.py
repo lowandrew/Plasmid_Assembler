@@ -68,6 +68,7 @@ class PlasmidExtractor:
         self.consensus_plasmids = list()
         self.no_consensus = args.no_consensus
         self.low_memory = args.low_memory
+        self.clean_reads = args.remove_plasmid
 
     def main(self):
         if not os.path.isdir(self.tmpdir):
@@ -79,6 +80,7 @@ class PlasmidExtractor:
                                      self.start)
         out, err = bbtools.bbduk_trim(forward_in=self.forward_reads, forward_out=self.forward_trimmed,
                                       reverse_in=self.reverse_reads, reverse_out=self.reverse_trimmed, overwrite='t')
+
         with open(self.logfile, 'a+') as logfile:
             logfile.write(out + '\n')
             logfile.write(err + '\n')
@@ -123,6 +125,7 @@ class PlasmidExtractor:
         for record in SeqIO.parse(self.sequence_db, 'fasta'):
             if record.id in plasmids_present:
                 SeqIO.write(record, os.path.join(self.tmpdir, record.id), 'fasta')
+                # TODO: Get this step parallelized for when we have lots of potential plasmids found by MASH
                 kmc.kmc(os.path.join(self.tmpdir, record.id), os.path.join(self.tmpdir, record.id), fm='')
         self.find_plasmids()
         # If no potential plasmids were found, we can skip over the rest of this.
@@ -146,7 +149,8 @@ class PlasmidExtractor:
                     self.consensus_plasmids.append(self.output_base + '/' + os.path.split(plasmid)[-1] + '_consensus.fasta')
                 accessoryFunctions.printtime('Generating plasmid-free reads...', self.start)
                 # Remove plasmid from reads.
-                self.remove_plasmid_from_reads()
+                if self.clean_reads:
+                    self.remove_plasmid_from_reads()
 
         # Remove temporary files, unless use for some reason wanted to keep them.
         if not self.keep_tmpfiles:
@@ -266,7 +270,7 @@ def check_dependencies():
         if is_present is None:
             not_present.append(dep)
     if len(not_present) > 0:
-        raise ModuleNotFoundError('ERROR! Could not find executable(s) for: {}!'.format(not_present))
+        raise ModuleNotFoundError('ERROR! Could not find executable(s) for: {}!'.format(str(not_present)))
 
 
 def find_paired_reads(fastq_directory, forward_id='R1', reverse_id='R2'):
@@ -550,6 +554,10 @@ if __name__ == '__main__':
                         action='store_true',
                         help='When enabled, will use substantially less memory (~ 7GB instead of ~24GB). May come at'
                              ' the cost of some sensitivity.')
+    parser.add_argument('-rp', '--remove_plasmid',
+                        default=False,
+                        action='store_true',
+                        help='If enabled, will remove plasmid reads from the input reads specified.')
     args = parser.parse_args()
     # Get a logfile set up.
     if not os.path.isdir(args.output_dir):
@@ -560,7 +568,11 @@ if __name__ == '__main__':
     for pair in paired_reads:
         accessoryFunctions.printtime('Beginning plasmid extraction for {}...'.format(pair[0]), start)
         extractor = PlasmidExtractor(args, pair, start)
-        extractor.main()
+        try:
+            extractor.main()
+        except subprocess.CalledProcessError:
+            accessoryFunctions.printtime('Error encountered for {}. Skipping...'.format(pair[0]), start, '\033[1;31m')
+            pass
         accessoryFunctions.printtime('Finished plasmid extraction for {}...'.format(pair[0]), start)
     # Now do some post-analysis. Sourmash for nice visualization, AMR gene finding, and maybe more?...
     if not args.no_consensus:

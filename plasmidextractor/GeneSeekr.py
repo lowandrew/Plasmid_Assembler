@@ -139,20 +139,19 @@ class GeneSeekr(object):
             fastapath = self.dqueue.get()  # grabs fastapath from dqueue
             # remove the path and the file extension for easier future globbing
             db = os.path.splitext(fastapath)[0]
-            nhr = '{}.nhr'.format(db)  # add nhr for searching
             # fnull = open(os.devnull, 'w')  # define /dev/null
-            if not os.path.isfile(str(nhr)):  # if check for already existing dbs
-                # Create the databases
-                # TODO use MakeBLASTdb class
-                threadlock = threading.Lock()
-                command = 'makeblastdb -in {} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {}'.format(fastapath, db)
-                # subprocess.call(shlex.split('makeblastdb -in {} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {}'
-                #                            .format(fastapath, db)), stdout=fnull, stderr=fnull)
-                out, err = run_subprocess(command)
-                threadlock.acquire()
-                write_to_logfile(command, command, self.logfile)
-                write_to_logfile(out, err, self.logfile)
-                threadlock.release()
+            # Create the databases - want to make sure we remake the db each time in case the user has
+            # added any more sequences to the database.
+            # TODO use MakeBLASTdb class
+            threadlock = threading.Lock()
+            command = 'makeblastdb -in {} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {}'.format(fastapath, db)
+            # subprocess.call(shlex.split('makeblastdb -in {} -parse_seqids -max_file_sz 2GB -dbtype nucl -out {}'
+            #                            .format(fastapath, db)), stdout=fnull, stderr=fnull)
+            out, err = run_subprocess(command)
+            threadlock.acquire()
+            write_to_logfile(command, command, self.logfile)
+            write_to_logfile(out, err, self.logfile)
+            threadlock.release()
             self.dqueue.task_done()  # signals to dqueue job is done
 
     def blastnthreads(self):

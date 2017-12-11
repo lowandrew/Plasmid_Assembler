@@ -13,7 +13,7 @@ For example, in order to analyze the reads in the directory `/home/user/reads` a
 Within the output directory, you will find the following:
 
 - a CSV file called plasmidReport.csv, which shows the plasmids found for each sample, along with a score that shows (approximately) the percent identity to a reference plasmid
-- a folder for each sample, which contains a FASTA file for each plasmid found, a FASTA file with the plasmids concatenated, and the input reads with any plasmid reads discarded
+- a folder for each sample, which contains a FASTA file for each plasmid found, a FASTA file with the plasmids concatenated
 - if there was more than one sample, an image file showing a dendrogram of similarity of the total plasmid content of each sample, as well as a heatmap showing similarity
 - a log file for each sample showing the output from each step of the pipeline 
 - CSV files describing virulence, AMR, and incompatibility genes found for each sample.
@@ -42,6 +42,7 @@ The input parameters of Plasmid Extractor can be customized to your liking. Here
 - Combine low memory mode with no consensus generation for maximum speed.
 `Extractor.py -i /home/user/reads -o output -sdb databases/plasmid_db.fasta -d databases -nc -l`
 
+
 #### Mandatory Arguments
 
 - `-o, --output_dir`: The location for your output folder. Can be anything you want it to. Output folder will be created if it does not exist.
@@ -61,6 +62,6 @@ of plasmid sequences, or append any plasmid sequences you want to the supplied d
 - `-rid, --reverse_id`: Same as `-fid`, but for reverse reads.
 - `-nc, --no_consensus`: Finding consensus sequences takes a fair chunk of time. If you want to skip this step and only identify the plasmids present in your sample, add this option. Adding this option means that any post-analysis of your plasmids that would usually take place (AMR detection, etc) will not occur.
 - `-l, --low_memory`: Enabling this flag will make the PlasmidExtractor pipeline use substantially less memory (~7GB of RAM at peak usage instead of >20GB). May cause slight drops in sensitivity, but nothing too drastic. 
-
+- `-rp, --remove_plasmid`: This flag will enable creation of plasmid-free reads, so that you can assemble/do downstream analysis on only chromosomal reads. Cannot be used with the `-nc` flag.
 
 

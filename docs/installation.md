@@ -6,19 +6,7 @@ In terms of system specs the more CPUs your system has, the better, as almost ev
 
 ## Installation Using Docker
 
-As PlasmidExtractor has a fair number of dependencies, the easiest way to get it installed and working on your machine is using docker. Instructions on docker installation can be found [here](https://docs.docker.com/engine/installation/).
-
-Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:
-
-`docker pull olcbioinformatics/cowpig`.
-
-The pipeline can then be run with: 
-
-`docker run -i -v /path/to/your/sequences/:/sequences olcbioinformatics/cowpig python3 /home/Extractor.py -i /sequences -o /sequences/output -sdb /home/new_database.fasta`
-
-Where `/path/to/your/sequences/` is the folder with the FASTQ files you want analyzed. A folder called output will be created in your input folder that will contain your results.
-
-Currently, the docker image is unable to create the output visualizations - this will be addressed in the future.
+Coming soon...
 
 ## Installing Using Pip
 

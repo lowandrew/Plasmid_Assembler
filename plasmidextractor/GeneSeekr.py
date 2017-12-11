@@ -125,7 +125,7 @@ class GeneSeekr(object):
         # Make blast databases for MLST files (if necessary)
         for targetdir in self.targetfolders:
             # List comprehension to remove any previously created database files from list
-            self.targetfiles = glob('{}/*.tfa'.format(targetdir))
+            self.targetfiles = glob('{}/*.fasta'.format(targetdir))
             for targetfile in self.targetfiles:
                 # Read the sequences from the target file to a dictionary
                 self.records[targetfile] = SeqIO.to_dict(SeqIO.parse(targetfile, 'fasta'))
@@ -862,11 +862,18 @@ if __name__ == '__main__':
             # begins with .fa
             self.strains = sorted(glob('{}N*.fasta*'.format(self.sequencepath)))
             self.targets = sorted(glob('{}*.tfa*'.format(self.targetpath)))
-            try:
-                self.combinedtargets = glob('{}/*.tfa'.format(self.targetpath))[0]
-            except IndexError:
+            # try:
+            #     self.combinedtargets = glob('{}/*.tfa'.format(self.targetpath))[0]
+            # except IndexError:
+            #     combinetargets(self.targets, self.targetpath)
+            #     self.combinedtargets = glob('{}/*.tfa'.format(self.targetpath))[0]
+            if len(self.targets) == 0:
+                print('ERROR: No target files found!')
+            elif len(self.targets) == 1:
+                self.combinedtargets = self.targets[1]
+            else:
                 combinetargets(self.targets, self.targetpath)
-                self.combinedtargets = glob('{}/*.tfa'.format(self.targetpath))[0]
+                self.combinedtargets = os.path.join(self.targetpath, 'combinedtargets.fasta')
             # Populate the metadata object. This object will be populated to mirror the objects created in the
             # genome assembly pipeline. This way this script will be able to be used as a stand-alone, or as part
             # of a pipeline

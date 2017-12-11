@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Customizing Plasmid Extractor - Plasmid Extractor</title>
+  
+
+  <link rel="shortcut icon" href="../img/favicon.ico">
+
+  
+  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+
+  <link rel="stylesheet" href="../css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../css/theme_extra.css" type="text/css" />
+  <link rel="stylesheet" href="../css/highlight.css">
+
+  
+  <script>
+    // Current page data
+    var mkdocs_page_name = "Customizing Plasmid Extractor";
+  </script>
+  
+  <script src="../js/jquery-2.1.1.min.js"></script>
+  <script src="../js/modernizr-2.8.3.min.js"></script>
+  <script type="text/javascript" src="../js/highlight.pack.js"></script>
+  <script src="../js/theme.js"></script> 
+
+  
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+      <div class="wy-side-nav-search">
+        <a href=".." class="icon icon-home"> Plasmid Extractor</a>
+        <div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <ul class="current">
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="..">Home</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="../installation/">Installation</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="../usage/">Usage</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 current">
+        <a class="current" href="./">Customizing Plasmid Extractor</a>
+        
+            <ul>
+            
+                <li class="toctree-l3"><a href="#customizing-the-plasmid-database">Customizing the Plasmid Database</a></li>
+                
+                    <li><a class="toctree-l4" href="#adding-on-to-the-default-database">Adding on to the Default Database</a></li>
+                
+                    <li><a class="toctree-l4" href="#using-a-different-database">Using A Different Database</a></li>
+                
+            
+                <li class="toctree-l3"><a href="#using-custom-amrvirulenceincompatibility-group-databases">Using Custom AMR/Virulence/Incompatibility Group Databases</a></li>
+                
+                    <li><a class="toctree-l4" href="#adding-on-to-the-defaults">Adding on to the Defaults</a></li>
+                
+                    <li><a class="toctree-l4" href="#creating-your-own-database">Creating Your Own Database</a></li>
+                
+            
+            </ul>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
+        <a class="" href="../FAQ/">FAQ</a>
+        
+    </li>
+<li>
+          
+        </ul>
+      </div>
+      &nbsp;
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="..">Plasmid Extractor</a>
+      </nav>
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="..">Docs</a> &raquo;</li>
+    
+      
+    
+    <li>Customizing Plasmid Extractor</li>
+    <li class="wy-breadcrumbs-aside">
+      
+        
+          <a href="https://github.com/lowandrew/Plasmid_Assembler" class="icon icon-github"> Edit on GitHub</a>
+        
+      
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main">
+            <div class="section">
+              
+                <h1 id="customizing-the-plasmid-database">Customizing the Plasmid Database</h1>
+<p>The plasmid database mentioned in the <a href="../installation/">Installation</a> section should be suitable for most purposes, as it contains 
+more than 9000 RefSeq plasmids covering all Bacteria. However, should you wish to add more sequences or use a completely different database,
+this is entirely possible.</p>
+<h5 id="adding-on-to-the-default-database">Adding on to the Default Database</h5>
+<p>Adding on to the default database is simple. To do so, just append any other sequences you would like PlasmidExtractor to search for to the end of the <code>plasmid_db.fasta</code> file
+included in the database download. This is particularly easily done from the command line. If, for example, you have a new sequence you would like to add to the database called
+<code>new_sequence.fasta</code> in the same folder as <code>plasmid_db.fasta</code>, a simple <code>cat</code> command can append for you:</p>
+<p><code>cat new_sequence.fasta &gt;&gt; plasmid_db.fasta</code> </p>
+<h5 id="using-a-different-database">Using A Different Database</h5>
+<p>Using a different database is also possible and easy to do. A valid plasmid database is any FASTA-formatted (uncompressed) file with one or more sequences within it, with unique names for each.
+To use a different database, just change the file you're pointing to with the <code>-sdb</code> option when calling PlasmidExtractor. </p>
+<h1 id="using-custom-amrvirulenceincompatibility-group-databases">Using Custom AMR/Virulence/Incompatibility Group Databases</h1>
+<p>The defaults databases for AMR/Virulence/Incompatibility Group Detection included with PlasmidExtractor
+are derived from <a href="https://bitbucket.org/account/user/genomicepidemiology/projects/CGE">CGE Databases</a>. Given that there are approximately 8 million different AMR databases out there, it's entirely possible that you have your own favorite that you would like to use. With PlasmidExtractor, you are able to do this with a fairly simple procedure.</p>
+<h5 id="adding-on-to-the-defaults">Adding on to the Defaults</h5>
+<p>If you want to add on to the default database, you can just add your sequences of interest to the relevant folder, with the caveat that the file extension needs to be <code>.tfa</code>. So, for example, if you have 
+a FASTA file with new AMR genes called <code>amr.fasta</code> that you would also like searched, you would move (or copy) the file to <code>databases/resistance_db</code> and rename it to <code>amr.tfa</code>. The following command would do this for you:</p>
+<p><code>cp amr.fasta databases/resistance_db/amr.tfa</code></p>
+<h5 id="creating-your-own-database">Creating Your Own Database</h5>
+<p>In the event you don't want anything to do with the included AMR databases, you don't have to use them at all! You can just delete the file in whichever folder you want to use your own databases for, 
+and then put the FASTA files for your own database (with the <code>.tfa</code> extension!) into that folder, and you'll be good to go. Note that the names of the folders for each type of detection must remain the same, and at least one target file must be in each of the folders, or you will have an error.</p>
+              
+            </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../FAQ/" class="btn btn-neutral float-right" title="FAQ"/>Next <span class="icon icon-circle-arrow-right"></span></a>
+      
+      
+        <a href="../usage/" class="btn btn-neutral" title="Usage"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+    
+  </div>
+
+  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+	  
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+<div class="rst-versions" role="note" style="cursor: pointer">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      
+          <a class="icon icon-github" style="float: left; color: #fcfcfc"> GitHub</a>
+      
+      
+        <span><a href="../usage/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+      
+      
+        <span style="margin-left: 15px"><a href="../FAQ/" style="color: #fcfcfc">Next &raquo;</a></span>
+      
+    </span>
+</div>
+
+</body>
+</html>

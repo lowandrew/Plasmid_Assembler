@@ -83,6 +83,13 @@
           
             <li>
     <li class="toctree-l1 ">
+        <a class="" href="../customization/">Customizing Plasmid Extractor</a>
+        
+    </li>
+<li>
+          
+            <li>
+    <li class="toctree-l1 ">
         <a class="" href="../FAQ/">FAQ</a>
         
     </li>
@@ -128,13 +135,7 @@
 <p>PlasmidExtractor has been developed and tested on Linux-based systems (more specifically Ubuntu and Mint). Any Linux/Unix-based system (including MacOS) should be able to run the pipeline, while users of Windows-based systems will have to use Docker in order to have the pipeline run.</p>
 <p>In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline more than 20 GB due to the size of the database that PlasmidExtractor uses. 32 GB or RAM is recommended. If your machine does not meet these requirements, PlasmidExtractor can be run in a low-memory mode, where memory usage should peak at ~7GB, enabling the pipeline to run on a much wider range of machines.</p>
 <h2 id="installation-using-docker">Installation Using Docker</h2>
-<p>As PlasmidExtractor has a fair number of dependencies, the easiest way to get it installed and working on your machine is using docker. Instructions on docker installation can be found <a href="https://docs.docker.com/engine/installation/">here</a>.</p>
-<p>Once you have docker installed, you can load the PlasmidExtractor image by booting a terminal and typing:</p>
-<p><code>docker pull olcbioinformatics/cowpig</code>.</p>
-<p>The pipeline can then be run with: </p>
-<p><code>docker run -i -v /path/to/your/sequences/:/sequences olcbioinformatics/cowpig python3 /home/Extractor.py -i /sequences -o /sequences/output -sdb /home/new_database.fasta</code></p>
-<p>Where <code>/path/to/your/sequences/</code> is the folder with the FASTQ files you want analyzed. A folder called output will be created in your input folder that will contain your results.</p>
-<p>Currently, the docker image is unable to create the output visualizations - this will be addressed in the future.</p>
+<p>Coming soon...</p>
 <h2 id="installing-using-pip">Installing Using Pip</h2>
 <h4 id="executable">Executable</h4>
 <p>PlasmidExtractor can also be installed using pip. Use of a virtual environment for PlasmidExtractor is highly recommended. To create a virtualenv:</p>

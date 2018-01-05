@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 import multiprocessing
 import argparse
+import glob
 import os
 from Bio import SeqIO
 from biotools import kmc
 from biotools import mash
 from biotools import bbtools
+from biotools.accessoryfunctions import file_len
 from accessoryFunctions import accessoryFunctions
 # My previous PlasmidExtractor code was fairly crappy (and not testable!) so it's getting rewritten here.
 
@@ -147,28 +149,49 @@ def create_individual_fastas(plasmid_db, potential_plasmid_list, output_dir):
             SeqIO.write(record, os.path.join(output_dir, record.id), 'fasta')
 
 
-def kmerize_individual_fastas(potential_plasmid_list, fasta_dir, output_dir, threads=1):
+def kmerize_individual_fastas(potential_plasmid_list, fasta_dir, output_dir, threads=1, logfile=None):
     """
     Creates a KMC database for a list of potential plasmids that have FASTA-formatted sequences in fasta_dir.
     KMC databases are placed in output_dir.
     :param potential_plasmid_list: List of potential plasmids.
     :param fasta_dir: Directory where FASTA files for each potential plasmid are located.
     :param output_dir: Directory to store KMC Databases in. Created if it doesn't exist.
-    :param threads:
+    :param logfile: File to write output to.
+    :param threads: Number of threads to run KMC with.
     """
     if not os.path.isdir(output_dir):  # Make output dir if necessary.
         os.makedirs(output_dir)
 
     for plasmid in potential_plasmid_list:  # Call KMC in FASTA mode on each individual FASTA.
-        kmc.kmc(forward_in=os.path.join(fasta_dir, potential_plasmid_list),
-                database_name=os.path.join(output_dir, plasmid),
-                tmpdir=os.path.join(output_dir, 'tmp'),
-                fm='',
-                t=threads)
+        out, err = kmc.kmc(forward_in=os.path.join(fasta_dir, potential_plasmid_list),
+                           database_name=os.path.join(output_dir, plasmid),
+                           tmpdir=os.path.join(output_dir, 'tmp'),
+                           fm='',
+                           t=threads)
+        if logfile:
+            accessoryFunctions.write_to_logfile(out, err, logfile)
 
 
-def find_plasmid_kmer_scores():
-    print('Finding KMER SCORES')
+def find_plasmid_kmer_scores(reads_kmerized, kmc_database_dir, output_dir,
+                             threads=1):
+    score_dict = dict()
+    kmerized_plasmids = glob.glob(os.path.join(kmc_database_dir, '*.kmc_pre'))
+    read_list = [reads_kmerized] * len(kmerized_plasmids)
+    pool = multiprocessing.Pool(processes=threads)
+    results = pool.starmap(find_score, read_list, kmerized_plasmids)
+    pool.close()
+    pool.join()
+
+
+def find_score(read_db, plasmid_db):  # THIS NEEDS TO BE FINSIHED.
+    plasmid = plasmid_db.replace('.kmc_pre', '')
+    kmc.intersect(read_db, plasmid_db, plasmid + '_intersect')
+    kmc.dump(plasmid, plasmid + '_dump')
+    kmc.dump(plasmid_db + '_intersect', plasmid + '_intersect_dump')
+    num_plasmid_kmers = file_len(plasmid + '_dump')
+    num_intersect_kmers = file_len(plasmid + '_intersect_dump')
+    score = float(num_intersect_kmers) / float(num_plasmid_kmers)
+    return score
 
 
 if __name__ == '__main__':

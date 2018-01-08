@@ -33,7 +33,7 @@ def bait_and_trim(forward_reads, output_dir, plasmid_db, logfile=None, reverse_r
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
-    if reverse_reads:  # If reverse reads file is provided, do things in paired end mode.
+    if reverse_reads is not None:  # If reverse reads file is provided, do things in paired end mode.
         # First trim.
         out, err = bbtools.bbduk_trim(forward_in=forward_reads,
                                       reverse_in=reverse_reads,
@@ -63,6 +63,7 @@ def bait_and_trim(forward_reads, output_dir, plasmid_db, logfile=None, reverse_r
     else:  # Only forward reads means do things in single end mode.
         # First trim.
         out, err = bbtools.bbduk_trim(forward_in=forward_reads,
+                                      reverse_in='NA',
                                       forward_out=os.path.join(output_dir, 'reads_trimmed_R1.fastq.gz'),
                                       threads=threads)
         if logfile:  # Write out and err from trimming.

@@ -445,6 +445,10 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='When enabled, will use substantially less memory for baiting out plasmid reads.')
+    parser.add_argument('-nc', '--no_consensus',
+                        default=False,
+                        action='store_true',
+                        help='When activated, will only find plasmids, not generate sequences and type them.')
     args = parser.parse_args()
 
     # Begin by finding both our paired reads and unpaired reads - these have to be treated slightly differently.
@@ -505,6 +509,13 @@ if __name__ == '__main__':
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
         printtime('Plasmids discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
         for plasmid in filtered_plasmids:
+            with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'a+') as f:
+                f.write('{sample},{plasmid},{score}\n'.format(sample=sample_name,
+                                                              plasmid=os.path.split(plasmid)[-1],
+                                                              score=plasmid_scores[plasmid]))
+            if args.no_consensus:
+                continue
+
             printtime('Recontructing plasmid similar to {}...'.format(os.path.split(plasmid)[-1]), start)
             generate_consensus(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
@@ -512,10 +523,6 @@ if __name__ == '__main__':
                                reference_fasta=plasmid,
                                logfile=log)
 
-            with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'a+') as f:
-                f.write('{sample},{plasmid},{score}\n'.format(sample=sample_name,
-                                                              plasmid=os.path.split(plasmid)[-1],
-                                                              score=plasmid_scores[plasmid]))
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
     # Go through the PlasmidExtractor workflow for unpaired reads.
@@ -559,6 +566,13 @@ if __name__ == '__main__':
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
         printtime('Plasmids discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
         for plasmid in filtered_plasmids:
+            with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'a+') as f:
+                f.write('{sample},{plasmid},{score}\n'.format(sample=sample_name,
+                                                              plasmid=os.path.split(plasmid)[-1],
+                                                              score=plasmid_scores[plasmid]))
+
+            if args.no_consensus:
+                continue
             printtime('Recontructing plasmid similar to {}...'.format(os.path.split(plasmid)[-1]), start)
             generate_consensus(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
@@ -566,15 +580,14 @@ if __name__ == '__main__':
                                reference_fasta=plasmid,
                                logfile=log)
 
-            with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'a+') as f:
-                f.write('{sample},{plasmid},{score}\n'.format(sample=sample_name,
-                                                              plasmid=os.path.split(plasmid)[-1],
-                                                              score=plasmid_scores[plasmid]))
-
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
     # Now FASTA files for each plasmid we've found have been generated - need to get them searched for
     # AMR/virulence/incompatiblity genes.
+    if args.no_consensus:
+        printtime('PlasmidExtractor workflow complete!', start, '\033[1;32m')
+        quit()
+
     printtime('Performing plasmid typing...', start)
     do_plasmid_typing(databases_folder=args.databases,
                       sample_directories=sample_directories)

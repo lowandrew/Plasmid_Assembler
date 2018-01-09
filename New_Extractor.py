@@ -4,6 +4,7 @@ import subprocess
 import argparse
 import shutil
 import glob
+import time
 import os
 from Bio import SeqIO
 from biotools import kmc
@@ -12,6 +13,7 @@ from biotools import mash
 from biotools import bbtools
 from biotools.accessoryfunctions import file_len
 from accessoryFunctions import accessoryFunctions
+from accessoryFunctions.accessoryFunctions import printtime
 # My previous PlasmidExtractor code was fairly crappy (and not testable!) so it's getting rewritten here.
 
 """
@@ -178,6 +180,16 @@ def kmerize_individual_fastas(potential_plasmid_list, fasta_dir, output_dir, thr
 
 def find_plasmid_kmer_scores(reads_kmerized, kmc_database_dir, output_dir,
                              threads=1, cutoff=0.95):
+    """
+    Computes kmer overlaps (how many kmers are in both plasmid and reads) for a set of reads and however many
+    kmer databases are in the kmc_database dir folder.
+    :param reads_kmerized: Name of kmerized read database.
+    :param kmc_database_dir: Folder containing kmc database dirs.
+    :param output_dir: Where to store intermediate files.
+    :param threads: Number of threads to use.
+    :param cutoff: Cutoff for finding
+    :return:
+    """
     present_plasmids = dict()
     kmerized_plasmids = glob.glob(os.path.join(kmc_database_dir, '*.kmc_pre'))
     if os.path.isfile(os.path.join(output_dir, 'plasmid_reads_R2.fastq.gz')):
@@ -332,7 +344,7 @@ def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=Non
                 pass
 
 
-def do_plasmid_typing(databases_folder, sample_directories):  # TODO: Make these not print to stdout
+def do_plasmid_typing(databases_folder, sample_directories):
     """
     Runs plasmid typing for AMR/virulence/incompatibility genes on completed PlasmidExtractor FASTAs.
     :param databases_folder: folder where databases for each kind of typing are stored.
@@ -341,22 +353,23 @@ def do_plasmid_typing(databases_folder, sample_directories):  # TODO: Make these
     for directory in sample_directories:
         # Only try to run GeneSeekr if at least one plasmid was found.
         if len(glob.glob(os.path.join(directory, '*fasta'))) > 0:
-            # AMR, then incompatibility, then virulence.
-            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {amr_targets} ' \
-                  '-v --report_name resistance.csv'.format(sample_dir=directory,
-                                                           amr_targets=os.path.join(databases_folder, 'resistance_db'))
-            subprocess.call(cmd, shell=True)
-            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {inc_targets} ' \
-                  '-v --report_name incompatibility.csv'.format(sample_dir=directory,
-                                                                inc_targets=os.path.join(databases_folder, 'incompatibility'))
-            subprocess.call(cmd, shell=True)
-            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {vir_targets} ' \
-                  '-v --report_name virulence.csv'.format(sample_dir=directory,
-                                                          vir_targets=os.path.join(databases_folder, 'virulence_db'))
-            subprocess.call(cmd, shell=True)
+            # AMR, then incompatibility, then virulence. Don't need to see out or err for these ones.
+            with open(os.devnull, 'w') as out:
+                cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {amr_targets} ' \
+                      '-v --report_name resistance.csv'.format(sample_dir=directory,
+                                                               amr_targets=os.path.join(databases_folder, 'resistance_db'))
+                subprocess.call(cmd, shell=True, stderr=out, stdout=out)
+                cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {inc_targets} ' \
+                      '-v --report_name incompatibility.csv'.format(sample_dir=directory,
+                                                                    inc_targets=os.path.join(databases_folder, 'incompatibility'))
+                subprocess.call(cmd, shell=True, stderr=out, stdout=out)
+                cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {vir_targets} ' \
+                      '-v --report_name virulence.csv'.format(sample_dir=directory,
+                                                              vir_targets=os.path.join(databases_folder, 'virulence_db'))
+                subprocess.call(cmd, shell=True, stderr=out, stdout=out)
 
 
-def create_summary_report(sample_directories, output_dir, report_name):  # TODO: Change report output to show what sample things came from.
+def create_summary_report(sample_directories, output_dir, report_name):
     """
     Looks into directories where PlasmidExtractor has run and concatenates reports into one report in output dir.
     :param sample_directories: List of directories where PlasmidExtractor output was created.
@@ -370,10 +383,16 @@ def create_summary_report(sample_directories, output_dir, report_name):  # TODO:
                 with open(os.path.join(directory, report_name)) as infile:
                     lines = infile.readlines()
                     for i in range(1, len(lines)):
-                        outfile.write(lines[i])
+                        # Replace the first item with whatever the sample name is.
+                        to_write = lines[i].split(',')[1:]
+                        if len(to_write) > 0:
+                            to_write = ','.join(to_write)
+                            outfile.write(os.path.split(directory)[-1] + ',' + to_write)
 
 
 if __name__ == '__main__':
+    start = time.time()
+    printtime('Welcome to PlasmidExtractor! Beginning workflow...', start)
     # Before starting anything, do a check for external dependencies.
     dependencies = ['bbduk.sh', 'bbmap.sh', 'samtools', 'bedtools', 'bcftools',
                     'kmc', 'mash']
@@ -450,11 +469,13 @@ if __name__ == '__main__':
         sample_name = os.path.split(pair[0])[-1].split(args.forward_id)[0]
         sample_directories.append(os.path.join(args.output_directory, sample_name))
         log = os.path.join(args.output_directory, sample_name + '.log')
+        printtime('Extracting plasmid reads for sample {}...'.format(sample_name), start)
         bait_and_trim(forward_reads=pair[0], reverse_reads=pair[1],
                       output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                       plasmid_db=args.plasmid_database, threads=args.threads,
                       low_memory=args.low_memory,
                       logfile=log)
+        printtime('Mashing for plasmids...', start)
         plasmids = mash_for_potential_plasmids(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
                                                output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
@@ -462,20 +483,29 @@ if __name__ == '__main__':
                                                plasmid_db=args.plasmid_database,
                                                identity_cutoff=args.cutoff,
                                                logfile=log)
+        printtime('Extracting potential plasmid FASTA files...', start)
         create_individual_fastas(plasmid_db=args.plasmid_database,
                                  potential_plasmid_list=plasmids,
                                  output_dir=os.path.join(args.output_directory, sample_name, 'tmp'))
+        printtime('Creating kmer databases...', start)
         kmerize_individual_fastas(potential_plasmid_list=plasmids,
                                   fasta_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                   output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                   threads=args.threads,
                                   logfile=log)
+        printtime('Scoring plasmids...', start)
         plasmid_scores = find_plasmid_kmer_scores(kmc_database_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                                   reads_kmerized=os.path.join(args.output_directory, sample_name, 'tmp', 'read_kmers'),
                                                   output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                                   cutoff=args.cutoff)
+        if len(plasmid_scores) == 0:
+            printtime('Found zero plasmids...', start)
+            continue
+        printtime('Filtering out similar plasmids...', start)
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
+        printtime('Plasmids discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
         for plasmid in filtered_plasmids:
+            printtime('Recontructing plasmid similar to {}...'.format(os.path.split(plasmid)[-1]), start)
             generate_consensus(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
@@ -494,31 +524,42 @@ if __name__ == '__main__':
         sample_name = os.path.splitext(sample_name)[0]
         sample_directories.append(os.path.join(args.output_directory, sample_name))
         log = os.path.join(args.output_directory, sample_name + '.log')
+        printtime('Extracting plasmid reads for sample {}...'.format(sample_name), start)
         bait_and_trim(forward_reads=reads,
                       output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                       plasmid_db=args.plasmid_database, threads=args.threads,
                       low_memory=args.low_memory,
                       logfile=log)
+        printtime('Mashing for plasmids...', start)
         plasmids = mash_for_potential_plasmids(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                                output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                                threads=args.threads,
                                                plasmid_db=args.plasmid_database,
                                                identity_cutoff=args.cutoff,
                                                logfile=log)
+        printtime('Extracting potential plasmid FASTA files...', start)
         create_individual_fastas(plasmid_db=args.plasmid_database,
                                  potential_plasmid_list=plasmids,
                                  output_dir=os.path.join(args.output_directory, sample_name, 'tmp'))
+        printtime('Creating kmer databases...', start)
         kmerize_individual_fastas(potential_plasmid_list=plasmids,
                                   fasta_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                   output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                   threads=args.threads,
                                   logfile=log)
+        printtime('Scoring plasmids...', start)
         plasmid_scores = find_plasmid_kmer_scores(kmc_database_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                                   reads_kmerized=os.path.join(args.output_directory, sample_name, 'tmp', 'read_kmers'),
                                                   output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
                                                   cutoff=args.cutoff)
+        if len(plasmid_scores) == 0:
+            printtime('Found zero plasmids...', start)
+            continue
+        printtime('Filtering out similar plasmids...', start)
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
+        printtime('Plasmids discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
         for plasmid in filtered_plasmids:
+            printtime('Recontructing plasmid similar to {}...'.format(os.path.split(plasmid)[-1]), start)
             generate_consensus(forward_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R1.fastq.gz'),
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
@@ -534,10 +575,12 @@ if __name__ == '__main__':
 
     # Now FASTA files for each plasmid we've found have been generated - need to get them searched for
     # AMR/virulence/incompatiblity genes.
+    printtime('Performing plasmid typing...', start)
     do_plasmid_typing(databases_folder=args.databases,
                       sample_directories=sample_directories)
 
     # Now, create summary reports of all typing info that will be placed into the main output directory.
+    printtime('Creating summary reports...', start)
     create_summary_report(sample_directories=sample_directories,
                           output_dir=args.output_directory,
                           report_name='resistance.csv')
@@ -547,3 +590,4 @@ if __name__ == '__main__':
     create_summary_report(sample_directories=sample_directories,
                           output_dir=args.output_directory,
                           report_name='virulence.csv')
+    printtime('PlasmidExtractor workflow complete!', start, '\033[1;32m')

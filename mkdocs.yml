@@ -1,5 +1,5 @@
 site_name: Plasmid Extractor
-theme: readthedocs
+theme: flatly
 repo_url: "https://github.com/lowandrew/Plasmid_Assembler"
 
 pages:

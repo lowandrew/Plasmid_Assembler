@@ -331,6 +331,48 @@ def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=Non
             except FileNotFoundError:
                 pass
 
+
+def do_plasmid_typing(databases_folder, sample_directories):  # TODO: Make these not print to stdout
+    """
+    Runs plasmid typing for AMR/virulence/incompatibility genes on completed PlasmidExtractor FASTAs.
+    :param databases_folder: folder where databases for each kind of typing are stored.
+    :param sample_directories: List of directories where PlasmidExtractor output was created.
+    """
+    for directory in sample_directories:
+        # Only try to run GeneSeekr if at least one plasmid was found.
+        if len(glob.glob(os.path.join(directory, '*fasta'))) > 0:
+            # AMR, then incompatibility, then virulence.
+            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {amr_targets} ' \
+                  '-v --report_name resistance.csv'.format(sample_dir=directory,
+                                                           amr_targets=os.path.join(databases_folder, 'resistance_db'))
+            subprocess.call(cmd, shell=True)
+            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {inc_targets} ' \
+                  '-v --report_name incompatibility.csv'.format(sample_dir=directory,
+                                                                inc_targets=os.path.join(databases_folder, 'incompatibility'))
+            subprocess.call(cmd, shell=True)
+            cmd = 'GeneSeekr.py -s {sample_dir} -r {sample_dir} -t {vir_targets} ' \
+                  '-v --report_name virulence.csv'.format(sample_dir=directory,
+                                                          vir_targets=os.path.join(databases_folder, 'virulence_db'))
+            subprocess.call(cmd, shell=True)
+
+
+def create_summary_report(sample_directories, output_dir, report_name):  # TODO: Change report output to show what sample things came from.
+    """
+    Looks into directories where PlasmidExtractor has run and concatenates reports into one report in output dir.
+    :param sample_directories: List of directories where PlasmidExtractor output was created.
+    :param output_dir: Directory to put output.
+    :param report_name: The report to look for in each sample_directory, including the .csv
+    """
+    with open(os.path.join(output_dir, report_name), 'w') as outfile:
+        outfile.write('Strain,Gene,PercentIdentity,PercentCovered,Contig,Location,Sequence\n')
+        for directory in sample_directories:
+            if os.path.isfile(os.path.join(directory, report_name)):
+                with open(os.path.join(directory, report_name)) as infile:
+                    lines = infile.readlines()
+                    for i in range(1, len(lines)):
+                        outfile.write(lines[i])
+
+
 if __name__ == '__main__':
     # Before starting anything, do a check for external dependencies.
     dependencies = ['bbduk.sh', 'bbmap.sh', 'samtools', 'bedtools', 'bcftools',
@@ -360,6 +402,10 @@ if __name__ == '__main__':
                         required=True,
                         type=str,
                         help='Path to Plasmid Database.')
+    parser.add_argument('-d', '--databases',
+                        required=True,
+                        type=str,
+                        help='Path to folder containing databases for BLAST typing.')
     parser.add_argument('-fid', '--forward_id',
                         type=str,
                         default='_R1',
@@ -397,10 +443,12 @@ if __name__ == '__main__':
     with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'w') as f:
         f.write('Sample,Plasmid,Score\n')
 
+    sample_directories = list()  # Keep track of sample directories so we know where to look for AMR/Virulence/Inc detection
     # Go through the PlasmidExtractor workflow for paired reads.
     for pair in paired_reads:
         # Get the sample name for the current pair. Use last part of file path, then split on paired read identifier.
         sample_name = os.path.split(pair[0])[-1].split(args.forward_id)[0]
+        sample_directories.append(os.path.join(args.output_directory, sample_name))
         log = os.path.join(args.output_directory, sample_name + '.log')
         bait_and_trim(forward_reads=pair[0], reverse_reads=pair[1],
                       output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
@@ -444,6 +492,7 @@ if __name__ == '__main__':
     for reads in unpaired_reads:
         sample_name = os.path.split(reads)[-1]
         sample_name = os.path.splitext(sample_name)[0]
+        sample_directories.append(os.path.join(args.output_directory, sample_name))
         log = os.path.join(args.output_directory, sample_name + '.log')
         bait_and_trim(forward_reads=reads,
                       output_dir=os.path.join(args.output_directory, sample_name, 'tmp'),
@@ -483,5 +532,18 @@ if __name__ == '__main__':
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
-# Also TODO: Get GeneSeekr implemented for AMR/Virulence/Incompatibility Detection. Try to make it somewhat less hacky
-# than in the previous implementation.
+    # Now FASTA files for each plasmid we've found have been generated - need to get them searched for
+    # AMR/virulence/incompatiblity genes.
+    do_plasmid_typing(databases_folder=args.databases,
+                      sample_directories=sample_directories)
+
+    # Now, create summary reports of all typing info that will be placed into the main output directory.
+    create_summary_report(sample_directories=sample_directories,
+                          output_dir=args.output_directory,
+                          report_name='resistance.csv')
+    create_summary_report(sample_directories=sample_directories,
+                          output_dir=args.output_directory,
+                          report_name='incompatibility.csv')
+    create_summary_report(sample_directories=sample_directories,
+                          output_dir=args.output_directory,
+                          report_name='virulence.csv')

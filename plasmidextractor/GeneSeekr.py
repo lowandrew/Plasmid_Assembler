@@ -264,6 +264,9 @@ class GeneSeekr(object):
         if len(resultdict) == 0:
             sample[self.analysistype].blastresults = 'NA'
 
+        # Remove the raw result csv file, because it's ugly and I don't want it.
+        os.remove(report)
+
     def uniqueblastparser(self, report, sample):
         """
         Find the best hit at a location, and discard any other matches
@@ -353,6 +356,8 @@ class GeneSeekr(object):
                     querysequence = row['query_sequence']
                 # Add the sequence in the correct orientation to the sample
                 sample[self.analysistype].targetsequence[target] = querysequence
+        # Get rid of the raw results file - don't want it for PlasmidExtractor purposes.
+        os.remove(report)
 
     def reporter(self):
         """
@@ -737,7 +742,7 @@ class GeneSeekr(object):
         workbook.close()
 
     def virulencefinderreporter(self):
-        with open(os.path.join(self.reportpath, 'virulence.csv'), 'w') as report:
+        with open(os.path.join(self.reportpath, self.report_name), 'w') as report:
             header = 'Strain,Gene,PercentIdentity,PercentCovered,Contig,Location,Sequence\n'
             data = ''
             for sample in self.metadata:
@@ -820,6 +825,7 @@ class GeneSeekr(object):
         self.cpus = inputobject.threads
         self.align = inputobject.align
         self.logfile = inputobject.logfile
+        self.report_name = inputobject.report_name
         # self.resfinder = inputobject.resfinder
         # self.virulencefinder = inputobject.virulencefinder
         # If CGE-based analyses are specified, set self.unique to True, otherwise, use the arguments
@@ -869,7 +875,7 @@ if __name__ == '__main__':
             if len(self.targets) == 0:
                 print('ERROR: No target files found!')
             elif len(self.targets) == 1:
-                self.combinedtargets = self.targets[1]
+                self.combinedtargets = self.targets[0]
             else:
                 combinetargets(self.targets, self.targetpath)
                 self.combinedtargets = os.path.join(self.targetpath, 'combinedtargets.fasta')
@@ -937,6 +943,10 @@ if __name__ == '__main__':
             parser.add_argument('-v', '--virulencefinder',
                                 action='store_true',
                                 help='Perform VirulenceFinder-like analyses')
+            parser.add_argument('--report_name',
+                                type=str,
+                                default='virulence.csv',
+                                help='Name for report.')
             args = parser.parse_args()
             self.sequencepath = os.path.join(args.sequencepath, '')
             assert os.path.isdir(self.sequencepath), 'Cannot locate sequence path as specified: {}'\
@@ -958,6 +968,7 @@ if __name__ == '__main__':
             self.targets = list()
             self.combinedtargets = str()
             self.samples = list()
+            self.report_name = args.report_name
             if self.resfinder:
                 self.analysistype = 'resfinder'
             elif self.virulencefinder:
@@ -986,6 +997,7 @@ if __name__ == '__main__':
             self.align = self.runmetadata.align
             self.unique = self.runmetadata.unique
             self.logfile = self.runmetadata.logfile
+            self.report_name = self.runmetadata.report_name
             # self.resfinder = self.runmetadata.resfinder
             # self.virulencefinder = self.runmetadata.virulencefinder
             # Run the analyses

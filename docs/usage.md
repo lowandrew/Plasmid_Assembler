@@ -1,4 +1,4 @@
-# Usage With a Pip Install
+# Usage With a Pip/Conda Install
 
 The basic usage of Plasmid Extractor is fairly simple. As input, you will need to provide:
 
@@ -7,6 +7,7 @@ The basic usage of Plasmid Extractor is fairly simple. As input, you will need t
 - resistance/virulence/incompatibility databases (also included with PlasmidExtractor distribution)
 - the path to a folder where you would like your output to be place (this folder will be created if it does not exist).
 
+To use PlasmidExtractor, make sure you have the conda environment (if installed with conda) or virtualenv (if installed using pip) activated, and then you'll be good to go. Typing `PlasmidExtractor.py` on the command line should bring up a help menu telling you what arguments you need to provide for PlasmidExtractor. 
 For example, in order to analyze the reads in the directory `/home/user/reads` and place the output into `output` using the default plasmid database, the command would be:
 `PlasmidExtractor.py -i /home/user/reads -o output -p databases/plasmid_db.fasta -d databases`
 
@@ -16,11 +17,6 @@ Within the output directory, you will find the following:
 - a folder for each sample, which contains a FASTA file for each plasmid found
 - a log file for each sample showing the output from each step of the pipeline 
 - CSV files describing virulence, AMR, and incompatibility genes found for each sample.
-
-
-# Usage with Docker 
-
-Coming soon...
 
 # A Few Usage Examples
 

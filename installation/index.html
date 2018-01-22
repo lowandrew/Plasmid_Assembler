@@ -114,7 +114,9 @@
     
         <li class="main active"><a href="#system-requirements">System Requirements</a></li>
         
-            <li><a href="#installation-using-docker">Installation Using Docker</a></li>
+            <li><a href="#databases">Databases</a></li>
+        
+            <li><a href="#installation-using-conda">Installation Using Conda</a></li>
         
             <li><a href="#installing-using-pip">Installing Using Pip</a></li>
         
@@ -126,8 +128,19 @@
 <h1 id="system-requirements">System Requirements</h1>
 <p>PlasmidExtractor has been developed and tested on Linux-based systems (more specifically Ubuntu and Mint). Any Linux/Unix-based system (including MacOS) should be able to run the pipeline, while users of Windows-based systems will have to use Docker in order to have the pipeline run.</p>
 <p>In terms of system specs the more CPUs your system has, the better, as almost every step of the pipeline is multi-threaded. RAM requirements can be somewhat heavy, with some parts of the pipeline more than 20 GB due to the size of the database that PlasmidExtractor uses. 32 GB or RAM is recommended. If your machine does not meet these requirements, PlasmidExtractor can be run in a low-memory mode, where memory usage should peak at ~7GB, enabling the pipeline to run on a much wider range of machines.</p>
-<h2 id="installation-using-docker">Installation Using Docker</h2>
-<p>Coming soon...</p>
+<h2 id="databases">Databases</h2>
+<p>The databases necessary for PlasmidExtractor are hosted on FigShare, and need to be downloaded no matter what installation method you choose.</p>
+<p>To download them, use the following command in the folder you want to download the databases to:</p>
+<p><code>wget https://ndownloader.figshare.com/files/9827323  &amp;&amp; tar xf 9827323 &amp;&amp; rm 9827323</code></p>
+<p>This will create a folder in you current working directory called databases which has all that you need to run PlasmidExtractor.</p>
+<h2 id="installation-using-conda">Installation Using Conda</h2>
+<p>Installing using conda is recommended, as it takes care of installing external program depedencies as well as the PlasmidExtractor script itself.</p>
+<p>If you don't already have conda installed, you can find instructions on the <a href="https://conda.io/docs/user-guide/install/index.html">conda ReadTheDocs page.</a></p>
+<p>With conda installed, all you'll need to do is download the PlasmidExtractor environment, which has been uploaded to the Anaconda cloud. To do this, use this command:</p>
+<p><code>conda env create lowandrew/plasmidextractor</code></p>
+<p>You should then be able to enter the conda environment:</p>
+<p><code>source activate plasmidextractor</code></p>
+<p>Within the environment, typing <code>PlasmidExtractor.py</code> will run the PlasmidExtractor pipeline - see the <a href="../usage/">Usage</a> section for instructions on how to run PlasmidExtractor.</p>
 <h2 id="installing-using-pip">Installing Using Pip</h2>
 <h4 id="executable">Executable</h4>
 <p>PlasmidExtractor can also be installed using pip. Use of a virtual environment for PlasmidExtractor is highly recommended. To create a virtualenv:</p>
@@ -139,7 +152,7 @@
 </ul>
 <p>With this done, you'll need to make sure that any necessary dependencies are installed.</p>
 <h4 id="dependencies">Dependencies</h4>
-<p>With that done, you will need to make sure that you have all of the depedencies for PlasmidExtractor installed and present on your $PATH. The dependencies for PlasmidExtractor are:</p>
+<p>With pip installation done, you will need to make sure that you have all of the depedencies for PlasmidExtractor installed and present on your $PATH. The dependencies for PlasmidExtractor are:</p>
 <ul>
 <li><a href="http://www.htslib.org/download/">samtools &gt;= 1.6</a></li>
 <li><a href="http://www.htslib.org/download/">bcftools &gt;= 1.6</a></li>
@@ -149,16 +162,10 @@
 <li><a href="https://github.com/marbl/Mash/releases">mash &gt;= 2.0</a></li>
 <li><a href="http://sun.aei.polsl.pl/REFRESH/index.php?page=projects&amp;project=kmc&amp;subpage=download">kmc &gt;= 3.0</a></li>
 <li><a href="https://www.python.org/downloads/">python &gt;= 3.5</a></li>
+<li><a href="https://github.com/samtools/htslib">tabix &gt;= 1.2.1</a></li>
 </ul>
 <p>For instructions on how to add programs to your $PATH, click <a href="https://askubuntu.com/questions/60218/how-to-add-a-directory-to-the-path">here</a>.</p>
-<p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you should get a <em>ModuleNotFoundError</em> for the depedency that has not been able to run properly.</p>
-<p>For visualization of sourmash results, you may need to install the python3-tk library. On a debian-based system, you can do this with: <code>apt-get install python3-tk</code></p>
-<h4 id="databases">Databases</h4>
-<p>Once you have the executable and dependencies installed, you'll just need to download the databases that ConFindr depends on.</p>
-<p>The databases necessary for PlasmidExtractor are hosted on FigShare.</p>
-<p>To download them, use the following command in the folder you want to download the databases to:</p>
-<p><code>wget https://ndownloader.figshare.com/files/9827323  &amp;&amp; tar xf 9827323</code></p>
-<p>This will create a folder in you current working directory called databases.</p></div>
+<p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you will get an error message printed to screen telling you which depedencies are not installed. Note that the check only looks for an executable and does <em>not</em> check the version, so you may need to check that you have the correct versions installed manually. </p></div>
         </div>
 
         <footer class="col-md-12">

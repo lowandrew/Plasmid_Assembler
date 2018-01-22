@@ -14,7 +14,6 @@ from biotools import bbtools
 from biotools.accessoryfunctions import file_len
 from accessoryFunctions import accessoryFunctions
 from accessoryFunctions.accessoryFunctions import printtime
-# My previous PlasmidExtractor code was fairly crappy (and not testable!) so it's getting rewritten here.
 
 """
 Methods that we'll need to include in this version of the code:
@@ -298,41 +297,45 @@ def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=Non
     :param output_base: Base name for output files.
     :param threads: Number of threads to run analysis with.
     """
-    with open(logfile, 'a+') as log:  # TODO: Separate this into stdout and stderr logs as done with other parts of the script
-        # Step 1: Index fasta file
-        cmd = 'samtools faidx {}'.format(reference_fasta)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 2: Run bbmap to generate sam/bamfile.
-        if reverse_reads:
-            cmd = 'bbmap.sh ref={} in={} in2={} out={} nodisk overwrite threads={}'.format(reference_fasta, forward_reads,
-                                                                                           reverse_reads, output_base + '.bam',
-                                                                                           str(threads))
-            subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        else:
-            cmd = 'bbmap.sh ref={} in={} out={} nodisk overwrite threads={}'.format(reference_fasta, forward_reads,
-                                                                                    output_base + '.bam',
-                                                                                    str(threads))
-            subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 3: Sort the bam file.
-        cmd = 'samtools sort {}.bam -o {}_sorted.bam'.format(output_base, output_base)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 3.1: Use bedtools + some shell magic to find regions with zero coverage that we'd like to be Ns.
-        # Ideally, change this from awk at some point to make it more generalizable.
-        cmd = 'bedtools genomecov -ibam {}_sorted.bam -bga | awk \'$4 == 0\' > {}.bed'.format(output_base, output_base)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 3.2: Fancy bcftools piping to generate vcf file.
-        cmd = 'bcftools mpileup --threads {} -Ou -f {} {}_sorted.bam | bcftools call --threads {} -mv -Oz -o {}.vcf.gz'\
-              ''.format(str(threads), reference_fasta, output_base, str(threads), output_base)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 4: Index vcf file.
-        cmd = 'tabix {}.vcf.gz'.format(output_base)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 5: Generate consensus fasta from vcf file.
-        cmd = 'cat {} | bcftools consensus {}.vcf.gz > {}'.format(reference_fasta, output_base, 'tmp.fasta')
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
-        # Step 6: Mask regions that don't have any coverage using bedtools.
-        cmd = 'bedtools maskfasta -fi tmp.fasta -bed {}.bed -fo {}'.format(output_base, output_fasta)
-        subprocess.call(cmd, shell=True, stderr=log, stdout=log)
+    outlog = logfile + '_out.txt'
+    errlog = logfile + '_err.txt'
+    with open(outlog, 'a+') as outlog_handle:
+        with open(errlog, 'a+') as errlog_handle:
+            # Step 1: Index fasta file
+            cmd = 'samtools faidx {}'.format(reference_fasta)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 2: Run bbmap to generate sam/bamfile.
+            if reverse_reads:
+                cmd = 'bbmap.sh ref={} in={} in2={} out={} nodisk overwrite threads={}'.format(reference_fasta, forward_reads,
+                                                                                               reverse_reads, output_base + '.bam',
+                                                                                               str(threads))
+                subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            else:
+                cmd = 'bbmap.sh ref={} in={} out={} nodisk overwrite threads={}'.format(reference_fasta, forward_reads,
+                                                                                        output_base + '.bam',
+                                                                                        str(threads))
+                subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 3: Sort the bam file.
+            cmd = 'samtools sort {}.bam -o {}_sorted.bam'.format(output_base, output_base)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 3.1: Use bedtools + some shell magic to find regions with zero coverage that we'd like to be Ns.
+            # Ideally, change this from awk at some point to make it more generalizable.
+            cmd = 'bedtools genomecov -ibam {}_sorted.bam -bga | awk \'$4 == 0\' > {}.bed'.format(output_base, output_base)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 3.2: Fancy bcftools piping to generate vcf file.
+            cmd = 'bcftools mpileup --threads {} -Ou -f {} {}_sorted.bam | bcftools call  --ploidy ' \
+                  '1 --threads {} -mv -Oz -o {}.vcf.gz'\
+                  ''.format(str(threads), reference_fasta, output_base, str(threads), output_base)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 4: Index vcf file.
+            cmd = 'tabix {}.vcf.gz'.format(output_base)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 5: Generate consensus fasta from vcf file.
+            cmd = 'cat {} | bcftools consensus {}.vcf.gz > {}'.format(reference_fasta, output_base, 'tmp.fasta')
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            # Step 6: Mask regions that don't have any coverage using bedtools.
+            cmd = 'bedtools maskfasta -fi tmp.fasta -bed {}.bed -fo {}'.format(output_base, output_fasta)
+            subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
 
     if cleanup:
         to_delete = [output_base + '.bam', reference_fasta + '.fai', output_base + '_sorted.bam',
@@ -392,7 +395,6 @@ def create_summary_report(sample_directories, output_dir, report_name):
 
 if __name__ == '__main__':
     start = time.time()
-    printtime('Welcome to PlasmidExtractor! Beginning workflow...', start)
     # Before starting anything, do a check for external dependencies.
     dependencies = ['bbduk.sh', 'bbmap.sh', 'samtools', 'bedtools', 'bcftools',
                     'kmc', 'mash']
@@ -451,6 +453,7 @@ if __name__ == '__main__':
                         help='When activated, will only find plasmids, not generate sequences and type them.')
     args = parser.parse_args()
 
+    printtime('Welcome to PlasmidExtractor! Beginning workflow...', start)
     # Begin by finding both our paired reads and unpaired reads - these have to be treated slightly differently.
     paired_reads = accessoryFunctions.find_paired_reads(args.input_directory,
                                                         forward_id=args.forward_id,
@@ -507,7 +510,7 @@ if __name__ == '__main__':
             continue
         printtime('Filtering out similar plasmids...', start)
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
-        printtime('Plasmids discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
+        printtime('Plasmid(s) discovered! Found {} plasmids...'.format(len(filtered_plasmids)), start)
         for plasmid in filtered_plasmids:
             with open(os.path.join(args.output_directory, 'plasmidReport.csv'), 'a+') as f:
                 f.write('{sample},{plasmid},{score}\n'.format(sample=sample_name,
@@ -521,7 +524,8 @@ if __name__ == '__main__':
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
                                reference_fasta=plasmid,
-                               logfile=log)
+                               logfile=log,
+                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'))
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
@@ -578,7 +582,8 @@ if __name__ == '__main__':
                                reverse_reads=os.path.join(args.output_directory, sample_name, 'tmp', 'plasmid_reads_R2.fastq.gz'),
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
                                reference_fasta=plasmid,
-                               logfile=log)
+                               logfile=log,
+                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'))
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 

@@ -151,7 +151,7 @@
 <li>Install PlasmidExtractor - this should also install any python packages necessary for PlasmidExtractor to run. (<code>pip install plasmidextractor</code>)</li>
 </ul>
 <p>With this done, you'll need to make sure that any necessary dependencies are installed.</p>
-<h4 id="dependencies">Dependencies</h4>
+<h4 id="mandatory-dependencies">Mandatory Dependencies</h4>
 <p>With pip installation done, you will need to make sure that you have all of the depedencies for PlasmidExtractor installed and present on your $PATH. The dependencies for PlasmidExtractor are:</p>
 <ul>
 <li><a href="http://www.htslib.org/download/">samtools &gt;= 1.6</a></li>
@@ -165,7 +165,16 @@
 <li><a href="https://github.com/samtools/htslib">tabix &gt;= 1.2.1</a></li>
 </ul>
 <p>For instructions on how to add programs to your $PATH, click <a href="https://askubuntu.com/questions/60218/how-to-add-a-directory-to-the-path">here</a>.</p>
-<p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you will get an error message printed to screen telling you which depedencies are not installed. Note that the check only looks for an executable and does <em>not</em> check the version, so you may need to check that you have the correct versions installed manually. </p></div>
+<p>If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you will get an error message printed to screen telling you which depedencies are not installed. Note that the check only looks for an executable and does <em>not</em> check the version, so you may need to check that you have the correct versions installed manually. </p>
+<h4 id="optional-dependencies">Optional Dependencies</h4>
+<ul>
+<li><a href="https://github.com/broadinstitute/pilon/releases">pilon &gt;= 1.22</a></li>
+</ul>
+<p>If you have Pilon installed, PlasmidExtractor will try to use it in order to polish the 
+consensus sequence created. In order to have this work, you need to have an executable called <code>pilon</code>
+accessible somewhere on your $PATH. </p>
+<p>To do this, download pilon from the above link, use chmod to make the jar file executable (<code>chmod 755 pilon-1.22.jar</code>),
+and then rename the executable to <code>pilon</code> and add it to your $PATH.</p></div>
         </div>
 
         <footer class="col-md-12">

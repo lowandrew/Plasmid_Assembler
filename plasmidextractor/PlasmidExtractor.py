@@ -285,7 +285,7 @@ def filter_similar_plasmids(plasmid_scores, output_dir):
 
 
 def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=None,
-                       cleanup=True, output_base='out', threads=4, reverse_reads=None):
+                       cleanup=True, output_base='out', threads=4, reverse_reads=None, gap_fill=False):
     """
     Generates a consensus fasta give a set of interleaved reads and a reference sequence.
     :param forward_reads: Forward input reads.
@@ -336,6 +336,14 @@ def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=Non
             # Step 6: Mask regions that don't have any coverage using bedtools.
             cmd = 'bedtools maskfasta -fi tmp.fasta -bed {}.bed -fo {}'.format(output_base, output_fasta)
             subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+            if gap_fill:
+                cmd = 'samtools index {}_sorted.bam'.format(output_base)
+                subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
+                cmd = 'java -Xmx16G -jar /home/lowa/Downloads/Programs/pilon-1.22.jar --genome {fasta} --bam {bam} ' \
+                      '--fix "gaps" --output {pilon_fasta}'.format(fasta=output_fasta,
+                                                                   bam=output_base + '_sorted.bam',
+                                                                   pilon_fasta=output_fasta.replace('.fasta', '_pilon'))
+                subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
 
     if cleanup:
         to_delete = [output_base + '.bam', reference_fasta + '.fai', output_base + '_sorted.bam',
@@ -451,6 +459,10 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='When activated, will only find plasmids, not generate sequences and type them.')
+    parser.add_argument('-g', '--gap_fill',
+                        default=False,
+                        action='store_true',
+                        help='If activated, will attempt to fill any gaps in the plasmid sequence found using Pilon.')
     args = parser.parse_args()
 
     printtime('Welcome to PlasmidExtractor! Beginning workflow...', start)
@@ -525,7 +537,8 @@ if __name__ == '__main__':
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
                                reference_fasta=plasmid,
                                logfile=log,
-                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'))
+                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
+                               gap_fill=args.gap_fill)
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
@@ -583,7 +596,8 @@ if __name__ == '__main__':
                                output_fasta=os.path.join(args.output_directory, sample_name, os.path.split(plasmid)[-1] + '.fasta'),
                                reference_fasta=plasmid,
                                logfile=log,
-                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'))
+                               output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
+                               gap_fill=args.gap_fill)
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 

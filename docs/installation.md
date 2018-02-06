@@ -44,7 +44,7 @@ PlasmidExtractor can also be installed using pip. Use of a virtual environment f
 
 With this done, you'll need to make sure that any necessary dependencies are installed.
 
-#### Dependencies 
+#### Mandatory Dependencies 
 With pip installation done, you will need to make sure that you have all of the depedencies for PlasmidExtractor installed and present on your $PATH. The dependencies for PlasmidExtractor are:
 
 - [samtools >= 1.6](http://www.htslib.org/download/)
@@ -61,5 +61,14 @@ For instructions on how to add programs to your $PATH, click [here](https://asku
 
 If all of your dependencies are properly installed, you should now be able to run PlasmidExtractor. If installation of a dependency has not worked, you will get an error message printed to screen telling you which depedencies are not installed. Note that the check only looks for an executable and does _not_ check the version, so you may need to check that you have the correct versions installed manually. 
 
+#### Optional Dependencies
 
+- [pilon >= 1.22](https://github.com/broadinstitute/pilon/releases)
+
+If you have Pilon installed, PlasmidExtractor will try to use it in order to polish the 
+consensus sequence created. In order to have this work, you need to have an executable called `pilon`
+accessible somewhere on your $PATH. 
+
+To do this, download pilon from the above link, use chmod to make the jar file executable (`chmod 755 pilon-1.22.jar`),
+and then rename the executable to `pilon` and add it to your $PATH.
 

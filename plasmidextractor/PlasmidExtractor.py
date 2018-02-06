@@ -339,10 +339,10 @@ def generate_consensus(forward_reads, reference_fasta, output_fasta, logfile=Non
             if gap_fill:
                 cmd = 'samtools index {}_sorted.bam'.format(output_base)
                 subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
-                cmd = 'java -Xmx16G -jar /home/lowa/Downloads/Programs/pilon-1.22.jar --genome {fasta} --bam {bam} ' \
-                      '--fix "gaps" --output {pilon_fasta}'.format(fasta=output_fasta,
-                                                                   bam=output_base + '_sorted.bam',
-                                                                   pilon_fasta=output_fasta.replace('.fasta', '_pilon'))
+                cmd = 'pilon --genome {fasta} --bam {bam} ' \
+                      '--fix "all" --output {pilon_fasta}'.format(fasta=output_fasta,
+                                                                  bam=output_base + '_sorted.bam',
+                                                                  pilon_fasta=output_fasta.replace('.fasta', '_pilon'))
                 subprocess.call(cmd, shell=True, stderr=errlog_handle, stdout=outlog_handle)
 
     if cleanup:
@@ -387,6 +387,11 @@ def create_summary_report(sample_directories, output_dir, report_name):
     :param output_dir: Directory to put output.
     :param report_name: The report to look for in each sample_directory, including the .csv
     """
+    if accessoryFunctions.dependency_check('pilon') is True:
+        gap_fill = True
+    else:
+        gap_fill = False
+
     with open(os.path.join(output_dir, report_name), 'w') as outfile:
         outfile.write('Strain,Gene,PercentIdentity,PercentCovered,Contig,Location,Sequence\n')
         for directory in sample_directories:
@@ -394,11 +399,18 @@ def create_summary_report(sample_directories, output_dir, report_name):
                 with open(os.path.join(directory, report_name)) as infile:
                     lines = infile.readlines()
                     for i in range(1, len(lines)):
-                        # Replace the first item with whatever the sample name is.
-                        to_write = lines[i].split(',')[1:]
-                        if len(to_write) > 0:
-                            to_write = ','.join(to_write)
-                            outfile.write(os.path.split(directory)[-1] + ',' + to_write)
+                        if gap_fill is True:
+                            if 'pilon' in lines[i]:
+                                # Replace the first item with whatever the sample name is.
+                                to_write = lines[i].split(',')[1:]
+                                if len(to_write) > 0:
+                                    to_write = ','.join(to_write)
+                                    outfile.write(os.path.split(directory)[-1] + ',' + to_write)
+                        else:
+                            to_write = lines[i].split(',')[1:]
+                            if len(to_write) > 0:
+                                to_write = ','.join(to_write)
+                                outfile.write(os.path.split(directory)[-1] + ',' + to_write)
 
 
 if __name__ == '__main__':
@@ -459,12 +471,12 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='When activated, will only find plasmids, not generate sequences and type them.')
-    parser.add_argument('-g', '--gap_fill',
-                        default=False,
-                        action='store_true',
-                        help='If activated, will attempt to fill any gaps in the plasmid sequence found using Pilon.')
     args = parser.parse_args()
 
+    if accessoryFunctions.dependency_check('pilon') is True:
+        gap_fill = True
+    else:
+        gap_fill = False
     printtime('Welcome to PlasmidExtractor! Beginning workflow...', start)
     # Begin by finding both our paired reads and unpaired reads - these have to be treated slightly differently.
     paired_reads = accessoryFunctions.find_paired_reads(args.input_directory,
@@ -538,7 +550,7 @@ if __name__ == '__main__':
                                reference_fasta=plasmid,
                                logfile=log,
                                output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
-                               gap_fill=args.gap_fill)
+                               gap_fill=gap_fill)
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
@@ -597,7 +609,7 @@ if __name__ == '__main__':
                                reference_fasta=plasmid,
                                logfile=log,
                                output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
-                               gap_fill=args.gap_fill)
+                               gap_fill=gap_fill)
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 

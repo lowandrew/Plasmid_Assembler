@@ -531,6 +531,7 @@ if __name__ == '__main__':
                                                   cutoff=args.cutoff)
         if len(plasmid_scores) == 0:
             printtime('Found zero plasmids...', start)
+            shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
             continue
         printtime('Filtering out similar plasmids...', start)
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))
@@ -590,6 +591,7 @@ if __name__ == '__main__':
                                                   cutoff=args.cutoff)
         if len(plasmid_scores) == 0:
             printtime('Found zero plasmids...', start)
+            shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
             continue
         printtime('Filtering out similar plasmids...', start)
         filtered_plasmids = filter_similar_plasmids(plasmid_scores, os.path.join(args.output_directory, sample_name, 'tmp'))

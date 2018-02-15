@@ -4,6 +4,7 @@ import subprocess
 import argparse
 import shutil
 import glob
+import gzip
 import time
 import os
 from Bio import SeqIO
@@ -13,6 +14,7 @@ from biotools import mash
 from biotools import bbtools
 from biotools.accessoryfunctions import file_len
 from accessoryFunctions import accessoryFunctions
+from Bio.SeqIO.QualityIO import FastqGeneralIterator
 from accessoryFunctions.accessoryFunctions import printtime
 
 """
@@ -413,6 +415,78 @@ def create_summary_report(sample_directories, output_dir, report_name):
                                 outfile.write(os.path.split(directory)[-1] + ',' + to_write)
 
 
+def find_average_read_length(fastq_file):
+    """
+    Samples the first 100 reads of a fastq file (must be uncompressed or gzip compressed, no bz2) in order to find the
+    average read length.
+    :param fastq_file: Path to an uncompressed or gzip-compressed fastq file.
+    :return: average read length, an int.
+    """
+    count = 0
+    total_length = 0
+    if fastq_file.endswith('.gz'):
+        with gzip.open(fastq_file, 'rt') as in_handle:
+            for title, seq, qual in FastqGeneralIterator(in_handle):
+                count += 1
+                total_length += len(seq)
+                if count >= 100:
+                    break
+    else:
+        with open(fastq_file, 'r') as in_handle:
+            for title, seq, qual in FastqGeneralIterator(in_handle):
+                count += 1
+                total_length += len(seq)
+                if count >= 100:
+                    break
+    average_read_length = int(total_length/count)
+    return average_read_length
+
+
+def remove_plasmid_from_reads(forward_reads, output_dir, plasmid_files, read_length, reverse_reads=None, logfile='log'):
+    """
+    Given some reads, will use bbduk to filter out reads that have matches to sequences in plasmid_files.
+    Ideally, this will result in a readset that has no plasmid reads, so that these can be assembled into
+    just chromosomal sequence.
+    :param forward_reads: path to forward reads.
+    :param output_dir: Directory where output reads will be placed.
+    :param plasmid_files: List, with each entry a path to a plasmid fasta that you don't want reads to have.
+    :param read_length: Average read length of the file - used to determine what k-value to use.
+    :param reverse_reads: Path to reverse reads, if you have them.
+    :param logfile: File where you'll log the output of bbduk commands.
+    :return: Nothing!
+    """
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+
+    outlog = logfile + '_out.txt'
+    errlog = logfile + '_err.txt'
+    # Turn list of plasmid files into a string, comma-separated.
+    plasmid_string = ''
+    for plasmid_fasta in plasmid_files:
+        plasmid_string += plasmid_fasta + ','
+    # Then cut off last comma so that it's prettier (and actually helps bbduk work properly).
+    plasmid_string = plasmid_string[:-1]
+    k = int(0.5 * read_length)
+
+    if reverse_reads is not None:
+        cmd = 'bbduk.sh in={forward_in} in2={reverse_in} out={forward_out} out2={reverse_out} ' \
+              'ref={plasmid_string} k={k}'.format(forward_in=forward_reads,
+                                                  reverse_in=reverse_reads,
+                                                  forward_out=os.path.join(output_dir, 'noplasmid_R1.fastq.gz'),
+                                                  reverse_out=os.path.join(output_dir, 'noplasmid_R2.fastq.gz'),
+                                                  plasmid_string=plasmid_string,
+                                                  k=k)
+    else:
+        cmd = 'bbduk.sh in={forward_in} out={forward_out} ref={plasmid_string} ' \
+              'k={k}'.format(forward_in=forward_reads,
+                             forward_out=os.path.join(output_dir, 'noplasmid.fastq.gz'),
+                             plasmid_string=plasmid_string,
+                             k=k)
+    with open(outlog, 'a+') as out_handle:
+        with open(errlog, 'a+') as err_handle:
+            subprocess.call(cmd, shell=True, stderr=err_handle, stdout=out_handle)
+
+
 if __name__ == '__main__':
     start = time.time()
     # Before starting anything, do a check for external dependencies.
@@ -471,6 +545,10 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true',
                         help='When activated, will only find plasmids, not generate sequences and type them.')
+    parser.add_argument('-rp', '--remove_plasmid',
+                        default=False,
+                        action='store_true',
+                        help='When activated, will remove plasmid reads from input readset.')
     args = parser.parse_args()
 
     if accessoryFunctions.dependency_check('pilon') is True:
@@ -553,6 +631,22 @@ if __name__ == '__main__':
                                output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
                                gap_fill=gap_fill)
 
+        if args.remove_plasmid and not args.no_consensus:
+            # If we're removing plasmid reads, first need to generate a list of fasta files of plasmids we want to not
+            # have in our reads.
+            printtime('Creating plasmid-free read set...', start)
+            plasmid_files = glob.glob(os.path.join(args.output_directory, sample_name, '*.fasta'))
+
+            # Also need to know our read length so that we give bbduk an appropriate k value - otherwise too much
+            # or too little gets removed from our reads.
+            read_length = find_average_read_length(pair[0])
+            remove_plasmid_from_reads(forward_reads=pair[0],
+                                      reverse_reads=pair[1],
+                                      output_dir=os.path.join(args.output_directory, sample_name),
+                                      read_length=read_length,
+                                      logfile=log,
+                                      plasmid_files=plasmid_files)
+
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
     # Go through the PlasmidExtractor workflow for unpaired reads.
@@ -612,6 +706,21 @@ if __name__ == '__main__':
                                logfile=log,
                                output_base=os.path.join(args.output_directory, sample_name, 'tmp', 'out'),
                                gap_fill=gap_fill)
+
+        if args.remove_plasmid and not args.no_consensus:
+            printtime('Creating plasmid-free read set...', start)
+            # If we're removing plasmid reads, first need to generate a list of fasta files of plasmids we want to not
+            # have in our reads.
+            plasmid_files = glob.glob(os.path.join(args.output_directory, sample_name, '*.fasta'))
+
+            # Also need to know our read length so that we give bbduk an appropriate k value - otherwise too much
+            # or too little gets removed from our reads.
+            read_length = find_average_read_length(reads)
+            remove_plasmid_from_reads(forward_reads=reads,
+                                      output_dir=os.path.join(args.output_directory, sample_name),
+                                      read_length=read_length,
+                                      logfile=log,
+                                      plasmid_files=plasmid_files)
 
         shutil.rmtree(os.path.join(args.output_directory, sample_name, 'tmp'))
 
